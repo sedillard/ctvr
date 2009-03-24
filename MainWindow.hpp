@@ -2,10 +2,6 @@
 #define MAINWINDOW_HPP_INCLUDED
 
 #include <QMainWindow>
-#include <QSlider>
-#include <QMenu>
-#include <QThread>
-#include <QAction>
 
 #include "ContourTree.hpp"
 #include "ContourTreeVolumeRenderer.hpp"
@@ -20,7 +16,8 @@ class MainWindow : public QMainWindow
   VolumeRendererWidget *vr;
 
   public:
-    MainWindow( ContourTree *ct, ContourTreeVolumeRenderer *ctvr);
+    MainWindow( ContourTree *ct, ContourTreeVolumeRenderer *ctvr,
+                QWidget *parent=0);
 
 };
 

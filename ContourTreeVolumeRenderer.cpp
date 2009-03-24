@@ -72,6 +72,13 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   vol_size[0] = ncols;
   vol_size[1] = nrows;
   vol_size[2] = nstacks;
+  nvoxels = ncols*nrows*nstacks;
+  voxels = voxels_;
+
+  //compute branch decomposition properties
+  compute_branch_properties();
+  compute_branch_map();
+  compute_max_shader_itrs(); 
 
   tf_res = 256;
   tf_size = 256; 
@@ -80,18 +87,20 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   global_tf_tex = new GLubyte[4*tf_res];
   rainbow_colors( (RGBA8*) global_tf_tex, tf_res );
   
-  branch_tf_offset.resize( ct.nbranches );
+  uint32_t nbranches = ct.branches.size();
+  branch_tf_offset.resize( nbranches );
   fill(branch_tf_offset.begin(),branch_tf_offset.end(),-1);
 
   //assign branch texture function offsets
-  for ( uint32_t b=0; b<ct.nbranches; ++b ) {
+  for ( uint32_t b=0; b<nbranches; ++b ) {
     branch_tf_offset[b] = tf_size;
     tf_size += branch_tf_size(b);
   }
 
+
   //compute size of wrapped tf and branch textures
   wrap_tex_size( tf_size, tf_res, tf_tex_nrows, tf_tex_ncols);
-  wrap_tex_size( ct.nbranches, tf_res, br_tex_nrows, br_tex_ncols);
+  wrap_tex_size( nbranches, tf_res, br_tex_nrows, br_tex_ncols);
 
   //compute the sizes of the 3D textures, rounding up to powers of 2
   for (int i=0; i<3; ++i) {
@@ -104,7 +113,6 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   
   init_branch_textures();
 
-  compute_max_shader_itrs(); 
 
   //pass this info into the shader as a #define
   stringstream shader_defines; 
@@ -139,7 +147,8 @@ ContourTreeVolumeRenderer::init_branch_textures()
 
 
   // initialize the textures
-  for ( uint32_t b=0; b<ct.nbranches; ++b ) {
+  uint32_t nbranches = ct.branches.size();
+  for ( uint32_t b=0; b<nbranches; ++b ) {
     uint32_t id0 = 2*b, id1 = id0+1;
     
     if (b == 0) { //root
@@ -192,6 +201,7 @@ ContourTreeVolumeRenderer::branch_tf_bounds( uint32_t b )
   pair<uint32_t,uint32_t> out;
   out.first  = (uint32_t)( floor(branch_lo_val[b] * tf_res) );
   out.second = (uint32_t)( ceil (branch_hi_val[b] * tf_res) );
+  assert( out.first <= out.second );
   if (out.first > 0) --out.first;
   if (out.second < 255) ++out.second;
   return out;
@@ -444,8 +454,8 @@ ContourTreeVolumeRenderer::load_textures()
 void
 ContourTreeVolumeRenderer::init_gl ()
 {
-    load_textures();
-    compile_shader();
+  load_textures();
+  compile_shader();
 }
 
 
@@ -543,8 +553,107 @@ ContourTreeVolumeRenderer::enable_gl()
 
 
 
-unsigned int
-ContourTreeVolumeRenderer::branch_tree_distance( uint32_t a_, uint32_t b_ )
+
+void
+ContourTreeVolumeRenderer::compute_branch_properties()
+{
+  uint32_t nbranches = ct.branches.size();
+  cout << "computing properties for " << nbranches << " branches" << endl;
+  branch_saddle_value.resize(nbranches,0);
+  branch_parent.resize(nbranches,uint32_t(-1));
+  branch_depth.resize(nbranches,0);
+  branch_lo_val.resize(nbranches,HUGE_VAL);
+  branch_hi_val.resize(nbranches,-HUGE_VAL);
+
+  Trilinear<uint8_t> & tl = ct.tl;
+  typedef pair<uint32_t,uint32_t> Pair; //branch id, depth
+  vector<Pair> stack( 1, make_pair(0,0) );
+
+  vector<uint32_t> children;
+  while(!stack.empty()) {
+    Pair & p = stack.back();
+    uint32_t b = p.first; //branch
+    uint32_t d = p.second; //depth
+    stack.pop_back();
+    branch_depth[b] = d;
+
+    pair<ContourTree::Node*,ContourTree::Node*> range = ct.branch_range(b);
+
+    branch_saddle_value[b] = tl.value(range.first->vertex);
+
+    float lo_val = tl.value(range.first->vertex) / 255.0f, 
+          hi_val = tl.value(range.second->vertex) / 255.0f;
+    if ( lo_val > hi_val ) swap(lo_val,hi_val);
+    
+    //propagate lo/hi values to parents
+    for (uint32_t p=b; p!=uint32_t(-1); p=branch_parent[p]) {
+      branch_lo_val[p] = min(lo_val,branch_lo_val[p]); 
+      branch_hi_val[p] = max(hi_val,branch_hi_val[p]); 
+    }
+
+    children.clear();
+    ct.get_branch_children(b,back_inserter(children));
+    for ( vector<uint32_t>::iterator itr=children.begin(); itr!=children.end(); ++itr ) {
+      uint32_t c = *itr; //child
+      assert( c < ct.branches.size() );
+      branch_parent[c] = b;
+      stack.push_back( make_pair(c,d+1) );
+    }
+  }
+
+
+  tl.clear_saddles();
+}
+
+
+void
+ContourTreeVolumeRenderer::compute_branch_map()
+{
+  cout << "computing branch map " << endl;
+  branch_map.resize( nvoxels, uint32_t(-1) );
+  Trilinear<uint8_t> & tl = ct.tl;
+
+  #pragma omp parallel for
+  for ( int i=0; i<int(nvoxels); ++i ) {
+    uint32_t up_vert = tl.reachable_max[i];
+    uint32_t down_vert = tl.reachable_min[i];
+    ContourTree::Node *up_node = ct.node_map[up_vert];
+    ContourTree::Node *down_node = ct.node_map[down_vert];
+    uint32_t up_branch = up_node->down->branch;
+    uint32_t down_branch = down_node->up->branch;
+    uint32_t b;
+    for(;;) {
+      if ( up_branch == down_branch ) {
+        b = up_branch;
+        break;
+      }
+      if (branch_depth[up_branch] > branch_depth[down_branch]) {
+        if ( branch_saddle_value[up_branch] < voxels[i] ) {
+          b=up_branch; 
+          break;
+        } else {
+          up_branch = branch_parent[up_branch];
+        }
+      } else {
+        if ( branch_saddle_value[down_branch] > voxels[i] ) {
+          b=down_branch; 
+          break;
+        } else {
+          down_branch = branch_parent[down_branch];
+        }
+      }
+    }
+    branch_map[i] = b;
+  }
+
+  //free up some memory
+  tl.reachable_max = tl.reachable_min = vector<uint32_t>();
+}
+
+
+
+uint32_t
+ContourTreeVolumeRenderer::branch_distance( uint32_t a_, uint32_t b_ )
 {
   uint32_t a=a_,b=b_;
   int d=0;
@@ -559,6 +668,9 @@ ContourTreeVolumeRenderer::branch_tree_distance( uint32_t a_, uint32_t b_ )
   }
   return d;
 }
+
+
+
 
 
 void
@@ -586,7 +698,7 @@ ContourTreeVolumeRenderer::compute_max_shader_itrs()
         
             for ( int i=0; i<7; ++i) 
             for ( int j=i+1; j<8; ++j ) {
-                uint32_t dist = branch_tree_distance(b[i],b[j]);
+                uint32_t dist = branch_distance(b[i],b[j]);
                 max_itrs = dist > max_itrs ? dist : max_itrs;
             }
             
@@ -603,7 +715,5 @@ ContourTreeVolumeRenderer::compute_max_shader_itrs()
         max_shader_itrs = 16;
     }
 }
-
-
 
 

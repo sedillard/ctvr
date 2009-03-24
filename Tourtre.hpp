@@ -110,9 +110,8 @@ struct Arc
   typedef Vertex_ Vertex;
   Node<Vertex> *lo,*hi;
   Arc<Vertex> *next_up,*next_down; //null-terminated linked list
-  Node<Vertex>* branch_root;
-  uint32_t id;
-  Arc() : lo(0),hi(0),next_up(0),next_down(0),branch_root(0) {}
+  uint32_t branch; //two arcs are on the same branch if this field is the same
+  Arc() : lo(0),hi(0),next_up(0),next_down(0),branch(-1) {}
 };
 
 template <typename Vertex_>
@@ -627,15 +626,18 @@ void mark_farthest_mins( std::vector<Node<Vertex>*> & nodes, std::vector<int> & 
 
 enum Direction { Up,Down };
 
-
-
 // Form a branch decomposition where each branch contains as many saddles as
 // possible. This requires that the nodes be marked with contiguous ids, e.g.
-// by using gather_nodes
+// after using get_nodes.
+//
+// Returns the number of branches and the root node. The 1st argument is input,
+// a list of nodes. The 2nd argument is output, the root arc of each branch
 
 template <typename Vertex>
-Node<Vertex>*
-greedy_branch_decomposition( std::vector<Node<Vertex>*> & nodes ) 
+void
+greedy_branch_decomposition
+( std::vector<Node<Vertex>*> & nodes,  
+  std::vector<Arc<Vertex>*> & branches ) 
 {
   std::vector<int> farthest_max(nodes.size()), farthest_min(nodes.size());
   mark_farthest_maxes(nodes,farthest_max);
@@ -656,49 +658,65 @@ greedy_branch_decomposition( std::vector<Node<Vertex>*> & nodes )
     }
   }
 
-  std::vector< std::pair<Node<Vertex>*,Direction> > 
-    stack(1, std::make_pair(best_node, best_node->is_max() ? Down : Up ) );
+  std::vector< std::pair<Arc<Vertex>*,Direction> > stack;
+  if ( best_node->is_max() ) 
+    stack.push_back( std::make_pair(best_node->down,Down) );
+  else
+    stack.push_back( std::make_pair(best_node->up,Up) );
 
   //for each root, walk out to the farthest max (min) and call those
   //arcs the branch
   while(!stack.empty()) {
-    Node<Vertex> *root = stack.back().first;  
+    Arc<Vertex> *first = stack.back().first;  
     Direction dir = stack.back().second;
     stack.pop_back();
-    Node<Vertex> *r = root;
+    uint32_t branch_id = branches.size();
+    branches.push_back(first);
+    Arc<Vertex> *arc = first;
     if ( dir == Up ) {
       for(;;) {
+        arc->branch = branch_id; 
+        Arc<Vertex> *next = arc->hi->up;
+        if (!next) break;
         //the next arc along the branch is the one that leads to the farthest max 
-        Arc<Vertex> *next_arc = r->up;
-        if (!next_arc) break;
-        for ( Arc<Vertex> *a=next_arc->next_up; a; a=a->next_up ) {
-          if ( farthest_max[a->hi->id] > farthest_max[next_arc->hi->id] )
-            next_arc = a;
+        for ( Arc<Vertex> *a=next->next_up; a; a=a->next_up ) {
+          if ( farthest_max[a->hi->id] > farthest_max[next->hi->id] )
+            next = a;
         }
-        next_arc->branch_root = root;
         //push all the rest of the arcs here onto the stack 
-        for ( Arc<Vertex> *a=r->up; a; a=a->next_up ) {
-          if ( a!=next_arc ) stack.push_back( std::make_pair(a->hi,Up) );
+        for ( Arc<Vertex> *a=arc->hi->up; a; a=a->next_up ) 
+          if ( a!=next ) {
+            stack.push_back( std::make_pair(a,Up) );
+          }
+        for ( Arc<Vertex> *a=arc->hi->down; a; a=a->next_down ) {
+          if ( a!=arc ) {
+            stack.push_back( std::make_pair(a,Down) );
+          }
         }
-        r = next_arc->hi;
+        arc = next;
       }
     } else { // dir == Down
       for(;;) {
-        Arc<Vertex> *next_arc = r->down;
-        if (!next_arc) break;
-        for ( Arc<Vertex> *a=next_arc->next_down; a; a=a->next_down ) {
-          if ( farthest_min[a->hi->id] > farthest_min[next_arc->hi->id] )
-            next_arc = a;
+        arc->branch = branch_id; 
+        Arc<Vertex> *next = arc->lo->down;
+        if (!next) break;
+        for ( Arc<Vertex> *a=next->next_down; a; a=a->next_down ) {
+          if ( farthest_min[a->lo->id] > farthest_min[next->lo->id] )
+            next = a;
         }
-        next_arc->branch_root = root;
-        for ( Arc<Vertex> *a=r->down; a; a=a->next_down ) {
-          if ( a!=next_arc ) stack.push_back( std::make_pair(a->lo,Down) );
+        for ( Arc<Vertex> *a=arc->lo->up; a; a=a->next_up ) {
+          if ( a!= arc ) {
+            stack.push_back( std::make_pair(a,Up) );
+          }
         }
-        r = next_arc->lo;
+        for ( Arc<Vertex> *a=arc->lo->down; a; a=a->next_down )
+          if ( a!=next ) {
+            stack.push_back( std::make_pair(a,Down) );
+          }
+        arc = next;
       }
     }
   }
-  return best_node;
 }
 
 

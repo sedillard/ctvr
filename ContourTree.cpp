@@ -1,6 +1,8 @@
 
 #include "ContourTree.hpp"
 
+#include <utility>
+
 using namespace std;
 using namespace Tourtre;
 
@@ -135,17 +137,16 @@ void ContourTree::build ()
     }
   }
 
-  delete[] tl.reachable_max;
-  delete[] tl.reachable_min;
-  tl.reachable_max = tl.reachable_min = 0;
+  //tl.reachable_max = tl.reachable_min = vector<uint32_t>();
 
   remove_regular_points(verts.begin(),verts.end(),join_comps,split_comps);
-  verts.clear();
+  verts = vector<uint32_t>();
 
   cout << "merge" << endl;
   Tourtre::merge(join_root,split_root,join_comps,split_comps,node_map);
 
-  cout << "branch decomp" << endl;
+  tl.join_comps = tl.split_comps = vector<SweepComponent<uint32_t>*>();
+
   Node *n = node_map.begin()->second;
   
   //get list of nodes
@@ -154,7 +155,62 @@ void ContourTree::build ()
   //mark node ids
   for ( uint32_t i=0; i<nodes.size(); ++i ) nodes[i]->id = i;
 
-  Node *root_branch = greedy_branch_decomposition(nodes);
-  assert(root_branch);
+  for ( uint32_t i=0; i<nodes.size(); ++i ) {
+    assert ( !(nodes[i]->is_max() || nodes[i]->is_min()) || nodes[i]->vertex < nvoxels );
+  }
 
+  cout << "branch decomp" << endl;
+  greedy_branch_decomposition(nodes,branches);
+
+  for ( uint32_t i=0; i<nodes.size(); ++i ) {
+  }
+
+}
+
+
+
+
+bool ContourTree::branch_is_ascending( uint32_t b )
+{
+  Arc *first = branches[b];
+  if ( !first->hi->up ) return true; //its a max
+  if ( !first->lo->down ) return false; //its a min
+  for ( Arc *a=first->hi->up; a; a=a->next_up ) 
+    if ( a->branch==b ) return true; 
+  for ( Arc *a=first->lo->down; a; a=a->next_down ) 
+    if ( a->branch==b ) return true; 
+  assert(0&&"branch_is_ascending: couldn't find the 2nd arc along the branch");
+}
+
+
+pair<ContourTree::Node*,ContourTree::Node*> 
+ContourTree::branch_range( uint32_t b ) 
+{
+  Arc *first=branches[b], *arc=first, *next;
+  if ( branch_is_ascending(b) ) {
+    for(;;) {
+      next=0;
+      for ( Arc*a=arc->hi->up; a; a=a->next_up ) {
+        if ( a->branch == b ) {
+          next = a;
+          break;
+        }
+      }
+      if (!next) return make_pair(first->lo,arc->hi);
+      else arc = next;
+    }
+  } else {
+    for(;;) {
+      next=0;
+      for ( Arc*a=arc->lo->down; a; a=a->next_down ) {
+        if ( a->branch == b ) {
+          next = a;
+          break;
+        }
+      }
+      if (!next) return make_pair(first->hi,arc->lo);
+      else arc = next;
+    }
+  }
+  abort();
 }

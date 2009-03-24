@@ -2,7 +2,7 @@
 TEMPLATE = app
 
 QT += opengl
-CONFIG += warn_on debug_and_release
+CONFIG += warn_on debug
 CONFIG(debug, debug|release) {
   TARGET = ctvr_dbg
   MOC_DIR = debug

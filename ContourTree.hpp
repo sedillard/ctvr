@@ -33,53 +33,71 @@ struct ContourTree
   //the rest of the tree. You can follow a branch out from that node
   //by walking along arcs whose branch_root field points to that node.
 
-  uint32_t nbranches;
-
   NodeMap node_map; //voxel -> node pointer
   std::vector< Node* > nodes; //node id -> node pointer
-  std::vector< Node* > branches; //branch id -> node pointer
-  std::vector< uint32_t > node_branch_id; //node id -> branch id
+  std::vector< Arc* > branches; //branch id -> pointer to first arc of branch
 
   void build(); //actually constructs the contour tree
+
+  template <typename OutputItr> 
+  void get_branch_children( uint32_t b, OutputItr out );
   
-  struct BranchChildItr 
-  {
-    ContourTree & ct;
-    Node *broot, *c;
-    bool ascending;
+  bool branch_is_ascending( uint32_t b );
 
-    BranchChildItr( ContourTree & ct_, uint32_t b ) : ct(ct_)
-    {
-      assert( b < ct.branches.size() );
-      broot = c = ct.branches[b]; 
-      for ( Arc *a=c->up; a; a=a->next_up ) 
-        if ( a->branch_root == broot ) { ascending=true; break; } 
-    }
-
-    operator bool() const { return c; }
-    uint32_t operator*() const { return ct.node_branch_id[c->id]; }
-
-    BranchChildItr & operator++() 
-    {
-      if ( ascending ) {
-        if (c->up) {
-          for ( Arc *a=c->up; a; a=a->next_up ) 
-            if ( a->branch_root == broot ) { c = a->hi; break; }
-        } else {
-          c = 0; 
-        }
-      } else {
-        if (c->up) {
-          for ( Arc *a=c->down; a; a=a->next_down ) 
-            if ( a->branch_root == broot ) { c = a->lo; break; }
-        } else {
-          c = 0; 
-        }
-      }
-      return *this;
-    }
-  };
+  std::pair<Node*,Node*> branch_range( uint32_t b );
+    //returns saddle,extremum
 
 };
+
+
+template<typename OutputItr>
+void get_ascending_branch_children( ContourTree::Arc* arc, OutputItr out )
+{
+  while( arc ) {
+    ContourTree::Arc *next = 0; 
+    for ( ContourTree::Arc *a=arc->hi->up; a; a=a->next_up ) {
+      if (a->branch==arc->branch) next=a;
+      else *(out++) = a->branch;
+    }
+    for ( ContourTree::Arc *a=arc->hi->down; a; a=a->next_down ) {
+      if ( a!=arc ) *(out++) = a->branch;
+    }
+    arc = next;
+  }
+}
+
+template<typename OutputItr>
+void get_descending_branch_children( ContourTree::Arc* arc, OutputItr out )
+{
+  while( arc ) {
+    ContourTree::Arc *next = 0; 
+    for ( ContourTree::Arc *a=arc->lo->down; a; a=a->next_down ) {
+      if (a->branch==arc->branch) next=a;
+      else *(out++) = a->branch;
+    }
+    for ( ContourTree::Arc *a=arc->lo->up; a; a=a->next_up ) 
+      if ( a!=arc ) *(out++) = a->branch;
+    arc = next;
+  }
+}
+
+template <typename OutputItr>
+void ContourTree::get_branch_children( uint32_t b, OutputItr out )
+{
+  Arc *first=branches[b];
+  for ( Arc *a=first->hi->up; a; a=a->next_up ) {
+    if (a->branch == b) {
+      get_ascending_branch_children(first,out);
+      return;
+    }
+  }
+  for ( Arc *a=first->lo->down; a; a=a->next_down ) {
+    if (a->branch == b) {
+      get_descending_branch_children(first,out);
+      return;
+    }
+  }
+}
+
 
 #endif

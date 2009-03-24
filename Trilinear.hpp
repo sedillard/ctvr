@@ -56,12 +56,12 @@ struct Trilinear
   uint32_t stride[3]; //voxel grid strides
   uint32_t nvoxels; //product of sizes
   Value *values; //voxel values (the image)
-  Saddle **saddle_map; //for each voxel, yields the linked list of saddles stored there
-  Component **join_comps, **split_comps;
+  std::vector<Saddle*> saddle_map; //for each voxel, yields the linked list of saddles stored there
+  std::vector<Component*> join_comps, split_comps;
 
   //reachable_max and reachable_min yield, for each voxel, a max or min that is 
   //reachable by a monotone path
-  uint32_t *reachable_max, *reachable_min;
+  std::vector<uint32_t> reachable_max,reachable_min;
 
   //maxes and mins (used for flooding out reachable regions)
   std::vector<uint32_t> maxes, mins;
@@ -83,6 +83,7 @@ struct Trilinear
   
   Trilinear( Value *values_, uint32_t ncols, uint32_t nrows, uint32_t nstacks )
   {
+    values = values_; //does not own!
     size[0] = ncols;
     size[1] = nrows;
     size[2] = nstacks;
@@ -90,17 +91,9 @@ struct Trilinear
     stride[0] = 1;
     stride[1] = ncols;
     stride[2] = ncols*nrows;
-    values = values_;
-    saddle_map = new Saddle*[nvoxels];
-    std::fill(saddle_map,saddle_map+nvoxels,static_cast<Saddle*>(0));
-    reachable_max = new uint32_t[nvoxels];
-    reachable_min = new uint32_t[nvoxels];
-    std::fill(reachable_max,reachable_max+nvoxels,-1);
-    std::fill(reachable_min,reachable_min+nvoxels,-1);
-    join_comps = new Component*[nvoxels];
-    split_comps = new Component*[nvoxels];
-    std::fill(join_comps,join_comps+nvoxels,reinterpret_cast<Component*>(0));
-    std::fill(split_comps,split_comps+nvoxels,reinterpret_cast<Component*>(0));
+    saddle_map.resize(nvoxels,0);
+    join_comps.resize(nvoxels,0);
+    split_comps.resize(nvoxels,0);
   }
 
   ~Trilinear()
@@ -113,12 +106,6 @@ struct Trilinear
         delete t;
       }
     }
-    if (values) delete[] values;
-    if (saddle_map) delete[] saddle_map;
-    if (reachable_max) delete[] reachable_max;
-    if (reachable_min) delete[] reachable_min;
-    if (join_comps) delete[] join_comps;
-    if (split_comps) delete[] split_comps;
   }
  
   Saddle* saddle( uint32_t i ) const
@@ -842,7 +829,8 @@ struct Trilinear
   void mark_reachable_maxes()
   {
     std::cout << "mark reachable maxes (stack)" << std::endl;
-    std::fill(reachable_max,reachable_max+nvoxels,-1);
+    reachable_max.clear();
+    reachable_max.resize(nvoxels,-1);
     int nmaxes = maxes.size();
     #pragma omp parallel for
     for ( int m=0; m<nmaxes; ++m ) {
@@ -875,7 +863,8 @@ struct Trilinear
   void mark_reachable_mins()
   {
     std::cout << "mark reachable mins (stack)" << std::endl;
-    std::fill(reachable_min,reachable_min+nvoxels,-1);
+    reachable_min.clear();
+    reachable_min.resize(nvoxels,-1);
     int nmins = mins.size();
     #pragma omp parallel for
     for ( int m=0; m<nmins; ++m ) {
@@ -1036,6 +1025,20 @@ struct Trilinear
   };
 
 
+  void clear_saddles()
+  {
+    for ( uint32_t i=0; i<nvoxels; ++i ) {
+      Saddle *s = saddle_map[i];
+      while(s) { Saddle *t=s; s=s->next; delete t; }
+    }
+    saddle_map = std::vector<Saddle*>();
+  }
+
+  float value( uint32_t i ) 
+  {
+    if ( i < nvoxels ) return values[i];
+    else return saddle(i)->value;
+  }
 };
 
 #endif

@@ -17,7 +17,7 @@ class VolumeRendererWidget : public QGLWidget
   public:
     VolumeRendererWidget(
       ContourTreeVolumeRenderer *ctvr, 
-      QWidget *parent = 0 );
+      QWidget *parent=0 );
           
     void mousePressEvent ( QMouseEvent* );
     void mouseMoveEvent ( QMouseEvent* );
@@ -34,7 +34,6 @@ class VolumeRendererWidget : public QGLWidget
 
   private:
     void draw_box_faces();
-
     int mouse_x, mouse_y;
 };
 

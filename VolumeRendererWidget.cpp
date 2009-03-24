@@ -18,7 +18,6 @@ VolumeRendererWidget::VolumeRendererWidget
   QGLWidget(parent),
   ctvr(ctvr_)
 {
-
 }
 
 void

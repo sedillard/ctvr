@@ -13,6 +13,11 @@ int main( int argc, char* argv[] )
 {
   QApplication app( argc, argv );
 
+  if ( argc < 5 ) {
+    cerr << "usage: ctvr volume_file width height depth" << endl;
+    app.exit();
+  }
+
   string filename  = argv[1];
   uint32_t ncols   = atoi(argv[2]); 
   uint32_t nrows   = atoi(argv[3]); 
@@ -48,8 +53,10 @@ int main( int argc, char* argv[] )
 MainWindow::MainWindow
 ( 
   ContourTree *ct_, 
-  ContourTreeVolumeRenderer *ctvr_ 
+  ContourTreeVolumeRenderer *ctvr_ ,
+  QWidget *parent
 ) :
+  QMainWindow(parent),
   ct(ct_),
   ctvr(ctvr_)
 {

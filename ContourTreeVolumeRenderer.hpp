@@ -137,14 +137,17 @@ struct ContourTreeVolumeRenderer
     void init_branch_textures();
     void compile_shader();
     void load_textures();
-    void compute_max_shader_itrs();
     GLushort br_tex_x( uint32_t branch_id );
     GLushort br_tex_y( uint32_t branch_id );
     GLushort tf_tex_x( uint32_t offset );
     GLushort tf_tex_y( uint32_t offset );
     std::pair<uint32_t,uint32_t> branch_tf_bounds( uint32_t b );
-    unsigned int branch_tree_distance( uint32_t a_, uint32_t b_ );
     uint32_t branch_tf_size( uint32_t b );
+    void compute_branch_properties();
+    uint32_t branch_distance( uint32_t a, uint32_t b );
+    void compute_branch_map();
+    void compute_max_shader_itrs();
+    
 };
 
 #endif

@@ -19,12 +19,14 @@ QMAKE_CXXFLAGS += -fopenmp
 RESOURCES = ctvr.qrc
 
 HEADERS	= \
+  ColorMapEditor.hpp \
   ContourTree.hpp \
   ContourTreeVolumeRenderer.hpp \
   MainWindow.hpp \
   VolumeRendererWidget.hpp \
 
 SOURCES	= \
+  ColorMapEditor.cpp \
   ContourTree.cpp \
   ContourTreeVolumeRenderer.cpp \
   MainWindow.cpp \

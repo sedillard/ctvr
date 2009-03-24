@@ -7,6 +7,8 @@
 #include <QApplication>
 #include <QFile>
 
+#include "ColorMapEditor.hpp"
+
 using namespace std;
 
 
@@ -53,6 +55,10 @@ int main( int argc, char* argv[] )
 
   main_window->show();
   main_window->resize(700,600);
+
+  ColorMapEditor *color_map_ed = new ColorMapEditor;
+  color_map_ed->show();
+  
   app.exec();
 }
 

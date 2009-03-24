@@ -6,6 +6,7 @@
 
 struct RGBA8{ uint8_t r,g,b,a; };
 struct HLSA8{ uint8_t h,l,s,a; };
+struct HLSAf{ float h,l,s,a; };
 
 
 #define MAX3(a,b,c) (((a)>(c))?(((a)>(b))?(a):(b)):(((b)>(c))?(b):(c)))

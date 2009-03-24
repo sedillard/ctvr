@@ -210,9 +210,11 @@ void VolumeRendererWidget::wheelEvent( QWheelEvent *event )
 {
   double zoom = event->delta() > 0 ? 1.1 : 0.9;
   const uint32_t *size = ctvr->vol_size;
-  glTranslatef(size[0]/2.0, size[1]/2.0, size[2]/2.0 );
+  glMatrixMode(GL_MODELVIEW); 
+  glTranslated(size[0]/2.0, size[1]/2.0, size[2]/2.0 );
   glScaled(zoom,zoom,zoom);
-  glTranslatef(-size[0]/2.0, -size[1]/2.0, -size[2]/2.0 );
+  glTranslated(-(size[0]/2.0), -(size[1]/2.0), -(size[2]/2.0) );
+  cout << "size = " << size[0] << ',' << size[1] << ',' << size[2] << endl;
   update();
 }
 

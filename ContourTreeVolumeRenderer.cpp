@@ -10,7 +10,6 @@
 #include <GL/glu.h>
 
 #include "ContourTreeVolumeRenderer.hpp"
-#include "Color.hpp"
 
 using namespace std;
 
@@ -67,13 +66,16 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   uint32_t nstacks 
 ) : 
   ct(ct_),
+  tl(ct_.tl),
+  nvoxels(ncols*nrows*nstacks),
   voxels(voxels_)
 {
   vol_size[0] = ncols;
   vol_size[1] = nrows;
   vol_size[2] = nstacks;
-  nvoxels = ncols*nrows*nstacks;
-  voxels = voxels_;
+  assert(ncols   == tl.size[0]);
+  assert(nrows   == tl.size[1]);
+  assert(nstacks == tl.size[2]);
 
   //compute branch decomposition properties
   compute_branch_properties();
@@ -84,8 +86,8 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   tf_size = 256; 
 
   //create the global transfer function
-  global_tf_tex = new GLubyte[4*tf_res];
-  rainbow_colors( (RGBA8*) global_tf_tex, tf_res );
+  global_tf_tex = (RGBA8*)malloc0( sizeof(RGBA8)*tf_res );;
+  rainbow_colors( global_tf_tex, tf_res );
   
   uint32_t nbranches = ct.branches.size();
   branch_tf_offset.resize( nbranches );
@@ -109,12 +111,10 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   }
 
   //create the per-branch tf texture
-  tf_tex = (GLubyte*)malloc0( 4*tf_tex_nrows*tf_tex_ncols );
+  tf_tex = (RGBA8*)malloc0( sizeof(RGBA8)*tf_tex_nrows*tf_tex_ncols );
   
   init_branch_textures();
-
-
-
+  test_tf();
 }
 
 
@@ -336,7 +336,7 @@ ContourTreeVolumeRenderer::load_textures()
         GL_TEXTURE_2D, 0, GL_RGBA8, 
         tf_tex_ncols, tf_tex_nrows, 0, 
         GL_RGBA, GL_UNSIGNED_BYTE, tf_tex );
-
+    
     
     glGenTextures(1,&global_tf_tex_id);
     glBindTexture(GL_TEXTURE_2D,global_tf_tex_id);
@@ -357,6 +357,9 @@ ContourTreeVolumeRenderer::load_textures()
         br_tex_ncols, br_tex_nrows, 0, 
         GL_LUMINANCE_ALPHA, GL_UNSIGNED_SHORT, tf_index_tex );
 
+    free(tf_index_tex);
+    tf_index_tex=0;
+
     //load parent tex
     glGenTextures(1,&parent_tex_id);
     glBindTexture(GL_TEXTURE_2D,parent_tex_id);
@@ -365,6 +368,9 @@ ContourTreeVolumeRenderer::load_textures()
     glTexImage2D(   GL_TEXTURE_2D, 0, GL_LUMINANCE16_ALPHA16, 
                     br_tex_ncols, br_tex_nrows, 0, 
                     GL_LUMINANCE_ALPHA, GL_UNSIGNED_SHORT, parent_tex );
+
+    free(parent_tex);
+    parent_tex=0;
     
     //load depth tex
     glGenTextures(1,&depth_tex_id);
@@ -375,6 +381,8 @@ ContourTreeVolumeRenderer::load_textures()
                     br_tex_ncols, br_tex_nrows, 0, 
                     GL_ALPHA, GL_UNSIGNED_BYTE, depth_tex );
 
+    free(depth_tex);
+    depth_tex=0;
 
     //load saddle tex
     glGenTextures(1,&saddle_val_tex_id);
@@ -385,6 +393,8 @@ ContourTreeVolumeRenderer::load_textures()
                     br_tex_ncols, br_tex_nrows, 0, 
                     GL_ALPHA, GL_FLOAT, saddle_val_tex );
 
+    free(saddle_val_tex);
+    saddle_val_tex = 0;
 
     //load data tex
     glGenTextures(1,&scalar_tex_id);
@@ -449,6 +459,8 @@ ContourTreeVolumeRenderer::load_textures()
                      GL_LUMINANCE_ALPHA, GL_UNSIGNED_SHORT, 
                      branch_map_tex );
     
+    free(branch_map_tex);
+    branch_map_tex=0;
 }
 
 
@@ -566,7 +578,6 @@ ContourTreeVolumeRenderer::compute_branch_properties()
   branch_lo_val.resize(nbranches,HUGE_VAL);
   branch_hi_val.resize(nbranches,-HUGE_VAL);
 
-  Trilinear<uint8_t> & tl = ct.tl;
   typedef pair<uint32_t,uint32_t> Pair; //branch id, depth
   vector<Pair> stack( 1, make_pair(0,0) );
 
@@ -601,9 +612,6 @@ ContourTreeVolumeRenderer::compute_branch_properties()
       stack.push_back( make_pair(c,d+1) );
     }
   }
-
-
-  tl.clear_saddles();
 }
 
 
@@ -718,3 +726,46 @@ ContourTreeVolumeRenderer::compute_max_shader_itrs()
 }
 
 
+RGBA8* ContourTreeVolumeRenderer::arc_tf_offset( ContourTree::Arc* a )
+{
+  uint32_t b = a->branch;
+  assert(b<branch_lo_val.size());
+  float lo = branch_lo_val[b];
+  
+  return reinterpret_cast<RGBA8*>(tf_tex) + 
+           ( branch_tf_offset[b] - uint32_t(floor(lo*(tf_res-1))) );
+}
+
+pair<uint32_t,uint32_t> 
+ContourTreeVolumeRenderer::arc_tf_bounds(ContourTree::Arc* arc)
+{
+  uint32_t b = arc->branch;
+  assert(b<branch_lo_val.size());
+  float lo = branch_lo_val[b];
+
+  float a_lo = floor( (tl.value(arc->lo->vertex)/255.0f)*(tf_res-1) );
+  float a_hi = ceil ( (tl.value(arc->hi->vertex)/255.0f)*(tf_res-1) );
+
+  uint32_t o = branch_tf_offset[b] - uint32_t(floor(lo*(tf_res-1)));;
+  return make_pair(o+uint32_t(a_lo), o+uint32_t(a_hi));
+}
+
+void ContourTreeVolumeRenderer::test_tf()
+{
+  for ( uint32_t i=0; i<ct.nodes.size(); ++i ) {
+    ContourTree::Node* n = ct.nodes[i]; 
+    for ( ContourTree::Arc *a=n->up; a; a=a->next_up ) {
+      pair<uint32_t,uint32_t> bounds = arc_tf_bounds(a);
+
+      for ( RGBA8* c = tf_tex+bounds.first; c!=tf_tex+bounds.second; ++c ) {
+        assert(c-tf_tex < ptrdiff_t(tf_size));
+        c->r = c->g = c->b = c->a = 0; 
+      }
+
+      if ( bounds.second - bounds.first > 10 ) {
+        RGBA8 *c = tf_tex + (bounds.first+bounds.second)/2;
+        c->r = c->g = c->b = c->a = 128; 
+      }
+    }
+  }
+}

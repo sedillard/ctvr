@@ -5,10 +5,14 @@
 #include <vector>
 #include <GL/gl.h>
 #include "ContourTree.hpp"
+#include "Trilinear.hpp"
+#include "Color.hpp"
 
 struct ContourTreeVolumeRenderer
 {
     ContourTree & ct;
+    Trilinear<uint8_t> & tl;
+
     uint32_t vol_size[3];
     uint32_t nvoxels;
     uint8_t *voxels; //not owned
@@ -70,7 +74,7 @@ struct ContourTreeVolumeRenderer
     float* saddle_val_tex;
         // 1 channel, stores branches' saddle values.
 
-    GLubyte* tf_tex;
+    RGBA8* tf_tex;
         // 4 channels (RGBA), stores the per-branch transfer functions
         
     GLushort* branch_map_tex;
@@ -81,7 +85,7 @@ struct ContourTreeVolumeRenderer
         //size of the 3D image, rounded up to 
         //powers of 2
 
-    GLubyte *global_tf_tex;
+    RGBA8 *global_tf_tex;
         // The global tf
     
     GLubyte *aux_scalar_tex; 
@@ -133,21 +137,48 @@ struct ContourTreeVolumeRenderer
 
     uint32_t max_shader_itrs;
 
-    //some internal functions
-    void init_branch_textures();
-    void compile_shader();
-    void load_textures();
-    GLushort br_tex_x( uint32_t branch_id );
-    GLushort br_tex_y( uint32_t branch_id );
-    GLushort tf_tex_x( uint32_t offset );
-    GLushort tf_tex_y( uint32_t offset );
-    std::pair<uint32_t,uint32_t> branch_tf_bounds( uint32_t b );
-    uint32_t branch_tf_size( uint32_t b );
+      //^^^^^^^^^^^^^^^^^^^^^/
+     //  Internal Functions /
+    //_____________________/
+      
+      
+    //functions to compute things like branch_parent, branch_saddle_val, etc.
     void compute_branch_properties();
     uint32_t branch_distance( uint32_t a, uint32_t b );
     void compute_branch_map();
     void compute_max_shader_itrs();
+
+    void compile_shader();
+
+    //create the branch textures
+    void init_branch_textures(); 
+
+    //Upload the branch textures, and free the memory. If you need to do it
+    //again call ini_branch_textures.
+    void load_textures(); 
+
+    //transform a 1D branch/tf index into a 2D texture coordinate
+    GLushort br_tex_x( uint32_t branch_id );
+    GLushort br_tex_y( uint32_t branch_id );
+    GLushort tf_tex_x( uint32_t offset );
+    GLushort tf_tex_y( uint32_t offset );
     
+    //the 1D bounds and size of a branch's transfer function
+    std::pair<uint32_t,uint32_t> branch_tf_bounds( uint32_t b );
+    uint32_t branch_tf_size( uint32_t b );
+
+    //Returns a pointer p such that p + (v*tf_res) yeilds the tf entry for
+    //value v along the arc.
+    RGBA8* arc_tf_offset( ContourTree::Arc* );
+          
+    //Returns two offsets into the transfer function array yielding the range
+    //of tf entries associated with the arc. End not included, stl-style.
+    std::pair<uint32_t,uint32_t> arc_tf_bounds(ContourTree::Arc* arc);
+
+    
+    //////// debugging stuff ///////
+    void test_tf();
+
 };
 
 #endif

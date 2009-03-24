@@ -240,9 +240,9 @@ void main ()
     for ( int i=0; i<64; ++i ) {
       p += view_vec;
       float f1 = texture3D(scalar_tex,p).a;
-      vec4 c = texture2D(global_tf_tex,vec2(f1,0.0));
-      //vec2 br = get_branch( p, f0 );
-      //vec4 c = sample_branch_tf(br,f1);
+      //vec4 c = texture2D(global_tf_tex,vec2(f1,0.0));
+      vec2 br = get_branch( p, f0 );
+      vec4 c = sample_branch_tf(br,f1);
       //vec4 c = vec4(f1,f1,f1,f1);
 
       c.rgb *= abs(dot(light_vec,normal(p,f1)));

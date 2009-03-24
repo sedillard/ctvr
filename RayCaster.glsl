@@ -23,7 +23,6 @@ uniform sampler2D parent_tex;
 uniform sampler2D tf_index_tex;
 uniform sampler2D depth_tex;
 uniform sampler2D saddle_val_tex;
-uniform sampler2D surface_val_tex;
 
 uniform vec4 branch_tex_size;
 
@@ -39,9 +38,6 @@ uniform vec3 view_vec;
 uniform vec2 x_size; //  { size-1 , 1/(size-1) }
 uniform vec2 y_size;
 uniform vec2 z_size;
-
-vec3 data_size = vec3(63.0,63.0,63.0);
-vec3 inv_data_size = vec3(1.0/63.0,1.0/63.0,1.0/64.0);
 
 uniform vec3 x_inch; //small offsets for computing gradient
 uniform vec3 y_inch;
@@ -65,23 +61,6 @@ vec3 x_down( in vec3 p )
     p.x *= x_size.r;
     p.x = floor(p.x-0.5)+0.5;
     p.x *= x_size.g;
-    return p;
-}
-
-vec3 all_down( vec3 p )
-{
-    p *= data_size;
-    p = floor(p-vec3(0.5,0.5,0.5))+0.5;
-    p *= inv_data_size;
-    return p;
-}
-
-
-vec3 all_up( vec3 p )
-{
-    p *= data_size;
-    p = ceil(p-vec3(0.5,0.5,0.5))+0.5;
-    p *= inv_data_size;
     return p;
 }
 
@@ -162,26 +141,6 @@ vec3 normal(vec3 p, float f)
     return normalize(grad);
 }
 
-
-float sample( vec3 p )
-{
-  vec3 p0 = all_down(p);
-  vec3 p1 = all_up(p);
-  
-  vec2 v0 = texture3D( scalar_tex, vec3(p0.x,p0.y,p0.z) ).ra,
-       v1 = texture3D( scalar_tex, vec3(p1.x,p0.y,p0.z) ).ra,
-       v2 = texture3D( scalar_tex, vec3(p0.x,p1.y,p0.z) ).ra,
-       v3 = texture3D( scalar_tex, vec3(p1.x,p1.y,p0.z) ).ra;
-  vec3 b = (p-p0)*data_size;
-  vec4 l0 = mix( vec4(v0.r,v1.r,v2.r,v3.r), vec4(v0.y,v1.y,v2.y,v3.y), b.z );
-  vec2 l1 = mix( vec2(l0.x,l0.y), vec2(l0.z,l0.w), b.y );
-  float f = mix( l1.x, l1.y, b.x );
-
-  vec3 lo_pnt = p, hi_pnt = p;
-  float lo_val = p, hi_val = p;
-  
-  return f;
-}
 
 vec2 get_branch(vec3 p, float f)
 {
@@ -278,15 +237,13 @@ void main ()
     vec3 box_bounds = vec3 (x_size.x,y_size.x,z_size.x);
 
     float f0 = texture3D(scalar_tex,p).a;
-    for ( int i=0; i<256; ++i ) {
+    for ( int i=0; i<64; ++i ) {
       p += view_vec;
       float f1 = texture3D(scalar_tex,p).a;
-      //vec4 c = texture2D(global_tf_tex,vec2(f1,0.0));
-      
-      vec2 br = get_branch( p, f0 );
-      //float surf_val = texture2D(surface_val_tex, br).a;
-      //vec4 c = ( (f0-surf_val)*(f1-surf_val) <= 0 ) ? vec4(1,0,0,0.2) : vec4(0,0,0,0);
-      vec4 c = sample_branch_tf(br,f1);
+      vec4 c = texture2D(global_tf_tex,vec2(f1,0.0));
+      //vec2 br = get_branch( p, f0 );
+      //vec4 c = sample_branch_tf(br,f1);
+      //vec4 c = vec4(f1,f1,f1,f1);
 
       c.rgb *= abs(dot(light_vec,normal(p,f1)));
       

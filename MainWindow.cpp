@@ -5,6 +5,7 @@
 #include <fstream>
 
 #include <QApplication>
+#include <QFile>
 
 using namespace std;
 
@@ -40,12 +41,18 @@ int main( int argc, char* argv[] )
   ct->build();
 
   cout << "setting up volume renderer" << endl;
+
   ContourTreeVolumeRenderer *ctvr = 
     new ContourTreeVolumeRenderer(*ct,image,ncols,nrows,nstacks);
+
+  QFile file(":/RayCaster.glsl");
+  file.open(QIODevice::ReadOnly | QIODevice::Text );
+  ctvr->fshader_src = string(file.readAll().data());
 
   MainWindow *main_window = new MainWindow(ct,ctvr);
 
   main_window->show();
+  main_window->resize(700,600);
   app.exec();
 }
 

@@ -2,7 +2,7 @@
 TEMPLATE = app
 
 QT += opengl
-CONFIG += warn_on debug
+CONFIG += warn_on debug_and_release
 CONFIG(debug, debug|release) {
   TARGET = ctvr_dbg
   MOC_DIR = debug
@@ -15,6 +15,8 @@ CONFIG(debug, debug|release) {
 
 LIBS += -fopenmp
 QMAKE_CXXFLAGS += -fopenmp
+
+RESOURCES = ctvr.qrc
 
 HEADERS	= \
   ContourTree.hpp \

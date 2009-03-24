@@ -114,12 +114,6 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   init_branch_textures();
 
 
-  //pass this info into the shader as a #define
-  stringstream shader_defines; 
-  shader_defines << "#define MAX_ITRS " << max_shader_itrs << endl  
-                 << "#define TF_RES " << tf_res << endl;
-
-  fshader_src += shader_defines.str();
 
 }
 
@@ -138,7 +132,7 @@ ContourTreeVolumeRenderer::init_branch_textures()
   // set branch_map_tex values, splitting into 1D index into 2D tex coords.
   {   
     GLushort *p = branch_map_tex;
-    for (uint32_t i=0; i<ct.nvoxels; ++i, p+=2) { 
+    for (uint32_t i=0; i<nvoxels; ++i, p+=2) { 
         assert(branch_map[i] != uint32_t(-1));
         p[0] = br_tex_x(branch_map[i]);
         p[1] = br_tex_y(branch_map[i]);
@@ -221,9 +215,16 @@ ContourTreeVolumeRenderer::compile_shader()
     fshader_id = glCreateShader(GL_FRAGMENT_SHADER);
     program_id = glCreateProgram();
 
+    //pass this info into the shader as a #define
+    stringstream shader_defines; 
+    shader_defines << "#define MAX_ITRS " << max_shader_itrs << endl  
+                  << "#define TF_RES " << tf_res << endl;
+    
+    string src_string = shader_defines.str() + fshader_src;
     //load shader src
-    const char *src[] = {fshader_src.c_str()};
-    const int len[] = {fshader_src.size()};
+    const char *src[] = {src_string.c_str()};
+    const int len[] = {src_string.size()};
+    
     glShaderSource( fshader_id,1,src,len );
 
     //compile
@@ -414,7 +415,7 @@ ContourTreeVolumeRenderer::load_textures()
    
     glTexSubImage3D( GL_TEXTURE_3D, 0, 0,0,0,
                     vol_size[0], vol_size[1], vol_size[2],
-                    GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, voxels );
+                    GL_ALPHA, GL_UNSIGNED_BYTE, voxels );
 
 
     //load branch map texture 

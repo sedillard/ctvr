@@ -128,7 +128,7 @@ void VolumeRendererWidget::draw_box_faces()
 
   glBegin(GL_QUADS);
     glColor3f(1,0,0);
-    if (vv[0] < 0) {
+    if (vv[0] > 0) {
       plot(0,  0 ,  0 );
       plot(0,  0 ,s[2]);
       plot(0,s[1],s[2]);
@@ -141,7 +141,7 @@ void VolumeRendererWidget::draw_box_faces()
     }
 
     glColor3f(0,1,0);
-    if (vv[1] < 0) {
+    if (vv[1] > 0) {
       plot(  0 ,0,  0 );
       plot(s[0],0,  0 );
       plot(s[0],0,s[2]);
@@ -154,7 +154,7 @@ void VolumeRendererWidget::draw_box_faces()
     }
 
     glColor3f(0,0,1);
-    if (vv[2] < 0) {
+    if (vv[2] > 0) {
       plot(  0 ,  0 ,0);
       plot(s[0],  0 ,0);
       plot(s[0],s[1],0);
@@ -191,16 +191,15 @@ void VolumeRendererWidget::mouseMoveEvent( QMouseEvent *event )
   glMatrixMode(GL_MODELVIEW);
 
   const uint32_t *size = ctvr->vol_size;
-  glTranslatef(size[0]/2.0, size[1]/2.0, size[2]/2.0 );
 
   pair< Vec3d, double> ang_ax = trackball( vec2(x0,y0) , vec2(x1,y1) );
+  
   Vec3d v = inverse( Matrix33d::from_upper_left( 
-              get_gl_matrix(GL_MODELVIEW_MATRIX))) * ang_ax.first;
+               get_gl_matrix(GL_MODELVIEW_MATRIX))) * ang_ax.first;
   glMatrixMode(GL_MODELVIEW); 
-
+  glTranslated(size[0]/2.0, size[1]/2.0, size[2]/2.0 );
   glRotated( ang_ax.second*180.0/M_PI, v[0],v[1],v[2]);
-
-  glTranslatef(-size[0]/2.0, -size[1]/2.0, -size[2]/2.0 );
+  glTranslated(-(size[0]/2.0), -(size[1]/2.0), -(size[2]/2.0) );
 
   update();
   mouse_x = event->x();

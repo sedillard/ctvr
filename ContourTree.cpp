@@ -155,16 +155,22 @@ void ContourTree::build ()
   //mark node ids
   for ( uint32_t i=0; i<nodes.size(); ++i ) nodes[i]->id = i;
 
+  //mark arc ids
+  uint32_t narcs=0;
+  for ( uint32_t i=0; i<nodes.size(); ++i ) {
+    for ( Arc* a=nodes[i]->up; a; a=a->next_up ) {
+      arcs.push_back(a);
+      a->id = ++narcs;
+    }
+  }
+  
+
   for ( uint32_t i=0; i<nodes.size(); ++i ) {
     assert ( !(nodes[i]->is_max() || nodes[i]->is_min()) || nodes[i]->vertex < nvoxels );
   }
 
   cout << "branch decomp" << endl;
   greedy_branch_decomposition(nodes,branches);
-
-  for ( uint32_t i=0; i<nodes.size(); ++i ) {
-  }
-
 }
 
 
@@ -214,3 +220,53 @@ ContourTree::branch_range( uint32_t b )
   }
   abort();
 }
+
+
+void ContourTree::prune_flat_arcs()
+{
+  deque<Node*> leafq;
+  for ( uint32_t i=0; i<nodes.size(); ++i ) 
+    if ( nodes[i]->is_max() || nodes[i]->is_min() ) 
+      leafq.push_back(nodes[i]);
+
+  Node *some_node=0;
+  while(!leafq.empty()) {
+    Node *n = leafq.front();
+    leafq.pop_front();
+    
+    if (n->is_max()) {
+      Arc *a = n->down;
+      Node *o = a->lo;
+      if ( o->up_degree() > 1 ) {
+        if ( tl.value(n->vertex) == tl.value(o->vertex) ) {
+          o->remove_up_arc(a);    
+          delete a;
+          delete n;
+          if ( o->up_degree()==1 && o->down_degree()==1 ) {
+            Arc *u = o->up, *d = o->down;
+            Node *h = u->hi, *l = d->lo;
+            a = new Arc;
+            h->remove_down_arc(u);
+            h->add_down_arc(a);
+            l->remove_up_arc(d);
+            l->add_up_arc(a);
+            delete u;
+            delete d;
+            delete o;
+            if (h->is_max()) leafq.push_back(h);
+            if (l->is_min()) leafq.push_back(l);
+            some_node = l;
+          } else {
+            some_node = o; 
+          }
+        }
+      }
+    } else {
+      //TODO 
+    }
+  }
+
+  nodes.clear();
+  get_nodes(some_node,back_inserter(nodes));
+}
+

@@ -35,6 +35,7 @@ struct ContourTree
 
   NodeMap node_map; //voxel -> node pointer
   std::vector< Node* > nodes; //node id -> node pointer
+  std::vector< Arc* > arcs; //arc id -> arc pointer
   std::vector< Arc* > branches; //branch id -> pointer to first arc of branch
 
   void build(); //actually constructs the contour tree
@@ -46,6 +47,8 @@ struct ContourTree
 
   std::pair<Node*,Node*> branch_range( uint32_t b );
     //returns saddle,extremum
+
+  void prune_flat_arcs();
 
 };
 

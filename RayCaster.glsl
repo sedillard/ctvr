@@ -230,33 +230,32 @@ vec4 sample_branch_tf( vec2 branch, float f )
 
 void main ()
 {
+  vec3 p = gl_TexCoord[0].xyz;
+  vec4 color = vec4(0,0,0,0);
 
-    vec3 p = gl_TexCoord[0].xyz;
-    vec4 color = vec4(0,0,0,0);
+  vec3 box_bounds = vec3 (x_size.x,y_size.x,z_size.x);
 
-    vec3 box_bounds = vec3 (x_size.x,y_size.x,z_size.x);
+  float f0 = texture3D(scalar_tex,p).a;
+  for ( int i=0; i<256; ++i ) {
+    p += view_vec;
+    float f1 = texture3D(scalar_tex,p).a;
+    vec4 g = texture2D(global_tf_tex,vec2(f1,0.0));
+    vec2 br = get_branch( p, f0 );
+    vec4 c = sample_branch_tf(br,f1);
 
-    float f0 = texture3D(scalar_tex,p).a;
-    for ( int i=0; i<64; ++i ) {
-      p += view_vec;
-      float f1 = texture3D(scalar_tex,p).a;
-      //vec4 c = texture2D(global_tf_tex,vec2(f1,0.0));
-      vec2 br = get_branch( p, f0 );
-      vec4 c = sample_branch_tf(br,f1);
-      //vec4 c = vec4(f1,f1,f1,f1);
+    c.rgb *= abs(dot(light_vec,normal(p,f1)));
+    c.a *= g.a;
+    
+    float a = (1.0-color.a)*c.a;
+    color.rgb += a*c.rgb;
+    color.a += a;
+    f0 = f1;
 
-      c.rgb *= abs(dot(light_vec,normal(p,f1)));
-      
-      float a = (1.0-color.a)*c.a;
-      color.rgb += a*c.rgb;
-      color.a += a;
-      f0 = f1;
+    if (any (lessThan( p, vec3(0.0,0.0,0.0))) ||
+        any (greaterThan(p, vec3(1.0,1.0,1.0)))) break;
+  }
 
-      if (any (lessThan( p, vec3(0.0,0.0,0.0))) ||
-          any (greaterThan(p, vec3(1.0,1.0,1.0)))) break;
-    }
-
-    gl_FragColor = color;
+  gl_FragColor = color;
 }
 
 

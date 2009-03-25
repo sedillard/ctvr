@@ -716,7 +716,7 @@ struct Trilinear
   void find_critical_voxels()
   {
     std::cout << "find critical voxels" << std::endl;
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for ( int z=0; z<int(size[2]); ++z ) {
       std::vector<uint32_t> found_maxes,found_mins,found_saddles;
       for ( uint32_t y=0; y<size[1]; ++y ) {
@@ -739,7 +739,6 @@ struct Trilinear
             switch(index) {
               case 0 : 
                 found_mins.push_back(i-values); 
-                //std::cout << "min at " << i-values << std::endl;
                 break;
               case 1 :
               case 2 : 
@@ -747,7 +746,6 @@ struct Trilinear
                 break;
               case 3 : 
                 found_maxes.push_back(i-values); 
-                //std::cout << "max at " << i-values << std::endl;
                 break;
               default: assert(0 && "wtf?");
             }

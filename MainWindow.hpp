@@ -6,6 +6,7 @@
 #include "ContourTree.hpp"
 #include "ContourTreeVolumeRenderer.hpp"
 #include "VolumeRendererWidget.hpp"
+#include "Color.hpp"
 
 class MainWindow : public QMainWindow
 {
@@ -19,6 +20,8 @@ class MainWindow : public QMainWindow
     MainWindow( ContourTree *ct, ContourTreeVolumeRenderer *ctvr,
                 QWidget *parent=0);
 
+  public slots:
+    void tf_edited( RGBA8* ); 
 };
 
 

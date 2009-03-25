@@ -9,9 +9,19 @@
 #include <GL/gl.h>
 #include <GL/glu.h>
 
+#include "Tourtre.hpp"
+#include "Trilinear.hpp"
+#include "ContourTree.hpp"
 #include "ContourTreeVolumeRenderer.hpp"
 
+#include <boost/foreach.hpp>
+
+#include <boost/pool/pool_alloc.hpp>
+
 using namespace std;
+using namespace boost;
+using namespace Tourtre;
+#define foreach BOOST_FOREACH
 
 static 
 void
@@ -114,7 +124,6 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   tf_tex = (RGBA8*)malloc0( sizeof(RGBA8)*tf_tex_nrows*tf_tex_ncols );
   
   init_branch_textures();
-  test_tf();
 }
 
 
@@ -465,6 +474,21 @@ ContourTreeVolumeRenderer::load_textures()
 
 
 void
+ContourTreeVolumeRenderer::update_tf_tex()
+{
+  cout << "update global tf " << endl;
+  glBindTexture(GL_TEXTURE_2D,tf_tex_id);
+  set_nn_tex_env();
+  set_pixel_store( tf_tex_ncols );
+
+  glTexImage2D(
+      GL_TEXTURE_2D, 0, GL_RGBA8, 
+      tf_tex_ncols, tf_tex_nrows, 0, 
+      GL_RGBA, GL_UNSIGNED_BYTE, tf_tex );
+}
+
+
+void
 ContourTreeVolumeRenderer::init_gl ()
 {
   load_textures();
@@ -565,6 +589,24 @@ ContourTreeVolumeRenderer::enable_gl()
 
 
 
+void 
+ContourTreeVolumeRenderer::set_global_tf( RGBA8 *colors ) 
+{
+  copy(colors,colors+tf_res,global_tf_tex);
+}
+
+
+void 
+ContourTreeVolumeRenderer::update_global_tf_tex() 
+{
+  glBindTexture(GL_TEXTURE_2D,global_tf_tex_id);
+  set_linear_tex_env();
+  set_pixel_store( tf_res );
+  glTexImage2D(
+      GL_TEXTURE_2D, 0, GL_RGBA8, 
+      tf_res, 1, 0, 
+      GL_RGBA, GL_UNSIGNED_BYTE, global_tf_tex );
+}
 
 
 void
@@ -769,3 +811,145 @@ void ContourTreeVolumeRenderer::test_tf()
     }
   }
 }
+
+uint32_t ContourTreeVolumeRenderer::node_cluster_find( uint32_t a )
+{
+  uint32_t c=node_cluster[a], t;
+  while (node_cluster[c]!=c) c=node_cluster[c];
+  while ( a != c ) t=node_cluster[a],node_cluster[a]=c,a=t;
+  return c;
+}
+
+void ContourTreeVolumeRenderer::node_cluster_union( uint32_t a, uint32_t b )
+{
+  a = node_cluster_find(a);
+  b = node_cluster_find(b);
+  node_cluster[a] = b; 
+}
+
+void ContourTreeVolumeRenderer::read_tracker_file( const char* filename )
+{
+  node_cluster.resize( ct.nodes.size() );
+  for ( size_t i=0; i<ct.nodes.size(); ++i ) 
+    node_cluster[i] = i; 
+  
+  ifstream file(filename,ios::in);
+  if (!file) {
+    cerr << "could not open tracker file " << filename << endl;
+    abort();
+  }
+  uint32_t from=0,to=0,when=0;
+  int nmerges=0;
+  for (;;) {
+    file >> from >> to >> when;
+    if (file.eof()) break;
+    ContourTree::Node 
+      *anode = ct.node_map[from], 
+      *bnode = ct.node_map[to];
+    if (!anode) {
+      cerr << "tracker file references extremum at id " << from << " but I don't see one there" << endl; 
+      abort();
+    }
+    if (!bnode) {
+      cerr << "tracker file references extremum at id " << to << " but I don't see one there" << endl; 
+      abort();
+    }
+    uint32_t a=anode->id, b=bnode->id;
+    if ( node_cluster_find(a) != node_cluster_find(b) ) {
+      ++nmerges; 
+      node_cluster_union(a,b); 
+    }
+  }
+  cout << "out of ~" << (ct.nodes.size()-1)/2 << " leaves, merged " 
+       << nmerges << endl;
+
+  propagate_cluster_info();
+}
+
+void ContourTreeVolumeRenderer::propagate_cluster_info()
+{
+  vector<int16_t> valence(ct.nodes.size(),0);
+  typedef pair<Arc*,Direction> Pair;
+  deque<Pair> nodeq;
+  foreach( Node *n, ct.nodes ) {
+    if (n->is_max()) {
+      nodeq.push_back(make_pair(n->down,Down));
+    } else if (n->is_min()) {
+      nodeq.push_back(make_pair(n->up,Up));
+    } else {
+      node_cluster[n->id] = uint32_t(-1);
+      valence[n->id] = n->up_degree() + n->down_degree();
+    }
+  }
+
+  typedef pool_allocator< pair<uint32_t,int>, default_user_allocator_new_delete,
+                         details::pool::null_mutex> alloc;
+  typedef map<uint32_t,int,less<uint32_t>,alloc > Map; 
+          //cluster id,num votes
+
+  while(!nodeq.empty()) {
+    Arc *a = nodeq.front().first;
+    Direction dir = nodeq.front().second;
+    nodeq.pop_front();
+    Node *n = dir==Up ? a->hi : a->lo;
+    --valence[n->id];
+    if ( valence[n->id]==1 && node_cluster[n->id]==uint32_t(-1) ) {
+      Map votes;
+      for ( Arc *a=n->up; a; a=a->next_up ) 
+        ++votes[node_cluster[a->hi->id]];
+      for ( Arc *a=n->down; a; a=a->next_down ) 
+        ++votes[node_cluster[a->lo->id]];
+
+      uint32_t best=-1;
+      int most_votes=-1;
+      foreach( Map::value_type v, votes ) {
+        if ( v.second > most_votes ) {
+          best = v.first, most_votes=v.second;
+        }
+      }
+      node_cluster[n->id] = best;
+
+      for ( Arc *a=n->up; a; a=a->next_up ) 
+        if ( node_cluster[a->hi->id]==uint32_t(-1) ) 
+          nodeq.push_back(make_pair(a,Up));
+      for ( Arc *a=n->down; a; a=a->next_down ) 
+        if ( node_cluster[a->lo->id]==uint32_t(-1) ) 
+          nodeq.push_back(make_pair(a,Down));
+    }
+  }
+
+  
+  foreach( uint32_t id, node_cluster ) assert(id!=uint32_t(-1));
+}
+
+
+void ContourTreeVolumeRenderer::cluster_tf()
+{
+  cout << "setting automatic transfer function based on cluster" << endl;
+  foreach( Arc* a, ct.arcs ) {
+    pair<uint32_t,uint32_t> bounds = arc_tf_bounds(a);
+    
+    if ( node_cluster[a->hi->id] == node_cluster[a->lo->id] ) {
+      srand(node_cluster[a->hi->id]);
+      double hue = 360* rand()/double(RAND_MAX);
+      float r,g,b;
+      hls_to_rgb(hue,0.5,1,r,g,b);
+      for ( RGBA8* c = tf_tex+bounds.first; c!=tf_tex+bounds.second; ++c ) {
+        assert(c-tf_tex < ptrdiff_t(tf_size));
+        c->r = uint8_t(255.0*r);
+        c->g = uint8_t(255.0*g);
+        c->b = uint8_t(255.0*b);
+        c->a = 128;
+      }
+    } else {
+      for ( RGBA8* c = tf_tex+bounds.first; c!=tf_tex+bounds.second; ++c ) {
+        assert(c-tf_tex < ptrdiff_t(tf_size));
+        c->r = c->g = 255; 
+        c->b = 0;
+        c->a = 40; 
+      }
+    }
+  }
+}
+
+

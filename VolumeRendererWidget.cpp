@@ -214,7 +214,6 @@ void VolumeRendererWidget::wheelEvent( QWheelEvent *event )
   glTranslated(size[0]/2.0, size[1]/2.0, size[2]/2.0 );
   glScaled(zoom,zoom,zoom);
   glTranslated(-(size[0]/2.0), -(size[1]/2.0), -(size[2]/2.0) );
-  cout << "size = " << size[0] << ',' << size[1] << ',' << size[2] << endl;
   update();
 }
 

@@ -51,6 +51,11 @@ int main( int argc, char* argv[] )
   file.open(QIODevice::ReadOnly | QIODevice::Text );
   ctvr->fshader_src = string(file.readAll().data());
 
+  if ( argc > 5 ) {
+    ctvr->read_tracker_file(argv[5]);
+    ctvr->cluster_tf();
+  }
+
   MainWindow *main_window = new MainWindow(ct,ctvr);
 
   main_window->show();
@@ -58,7 +63,8 @@ int main( int argc, char* argv[] )
 
   ColorMapEditor *color_map_ed = new ColorMapEditor;
   color_map_ed->show();
-  
+  app.connect( color_map_ed, SIGNAL(edited(RGBA8*)), main_window, SLOT(tf_edited(RGBA8*)) );
+
   app.exec();
 }
 
@@ -77,4 +83,10 @@ MainWindow::MainWindow
   setCentralWidget(vr);
 }
 
-
+void MainWindow::tf_edited( RGBA8 *colors )
+{
+  vr->makeCurrent();
+  ctvr->set_global_tf( colors );
+  ctvr->update_global_tf_tex();
+  vr->update(); 
+}

@@ -108,36 +108,64 @@ template <typename Vertex_>
 struct Arc
 {
   typedef Vertex_ Vertex;
-  Node<Vertex> *lo,*hi;
-  Arc<Vertex> *next_up,*next_down; //null-terminated linked list
+  typedef Tourtre::Node<Vertex> Node;
+  Node *lo,*hi;
+  uint32_t id;
+  Arc *next_up,*next_down; //null-terminated linked list
   uint32_t branch; //two arcs are on the same branch if this field is the same
-  Arc() : lo(0),hi(0),next_up(0),next_down(0),branch(-1) {}
+  Arc() : lo(0),hi(0),id(-1),next_up(0),next_down(0),branch(-1) {}
 };
 
 template <typename Vertex_>
 struct Node
 {
   typedef Vertex_ Vertex;
+  typedef Tourtre::Arc<Vertex> Arc;
   Vertex vertex;
-  Arc<Vertex> *up,*down;
+  Arc *up,*down;
   uint32_t id; 
   Node() : up(0),down(0) {}
 
   Node(Vertex v) : vertex(v),up(0),down(0) {}
 
-  void add_up_arc( Arc<Vertex> *a ) 
+  void add_up_arc( Arc *a ) 
   {
     a->next_up = up;
     up = a;
     a->lo = this;
   }
 
-  void add_down_arc( Arc<Vertex> *a ) 
+  void add_down_arc( Arc *a ) 
   { 
     a->next_down = down; 
     down = a; 
     a->hi = this;
   }
+
+  void remove_up_arc( Arc *a )
+  {
+    if ( up == a ) {
+      up = a->next_up; 
+    } else {
+      Arc *u = up;
+      while( u->next_up && u->next_up!=a ) u=u->next_up;
+      assert(u->next_up && u->next_up==a);
+      u->next_up = u->next_up->next_up;
+    }
+  }
+
+  void remove_down_arc( Arc *a )
+  {
+    if ( down == a ) {
+      down = a->next_down; 
+    } else {
+      Arc *d = down;
+      while( d->next_down && d->next_down!=a ) d=d->next_down;
+      assert(d->next_down && d->next_down==a);
+      d->next_down = d->next_down->next_down;
+    }
+  }
+  
 
   bool is_max() const { return !up ;}
   bool is_min() const { return !down ;}
@@ -145,14 +173,14 @@ struct Node
   int up_degree() const 
   {
     int deg=0;
-    for (Arc<Vertex> *u=up; u; u=u->next_up) ++deg;
+    for (Arc *u=up; u; u=u->next_up) ++deg;
     return deg;
   }
 
   int down_degree() const 
   {
     int deg=0;
-    for(Arc<Vertex> *d = down; d; d=d->next_down) ++deg;
+    for(Arc *d = down; d; d=d->next_down) ++deg;
     return deg;
   }
 
@@ -624,7 +652,6 @@ void mark_farthest_mins( std::vector<Node<Vertex>*> & nodes, std::vector<int> & 
 
 
 
-enum Direction { Up,Down };
 
 // Form a branch decomposition where each branch contains as many saddles as
 // possible. This requires that the nodes be marked with contiguous ids, e.g.
@@ -632,6 +659,8 @@ enum Direction { Up,Down };
 //
 // Returns the number of branches and the root node. The 1st argument is input,
 // a list of nodes. The 2nd argument is output, the root arc of each branch
+
+enum Direction { Up,Down };
 
 template <typename Vertex>
 void

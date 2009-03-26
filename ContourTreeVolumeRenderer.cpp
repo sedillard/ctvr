@@ -133,6 +133,8 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   
   init_branch_textures();
   default_tf();
+
+  grad = 0;
 }
 
 
@@ -1216,3 +1218,43 @@ void ContourTreeVolumeRenderer::composite_segment
   result.a += alpha;
 
 }
+
+
+
+
+void ContourTreeVolumeRenderer::compute_gradients()
+{
+  grad = new int16_t[nvoxels];
+  uint32_t ystride = vol_size[0], zstride = vol_size[0]*vol_size[1];
+  #pragma omp parallel for
+  for ( int z=0; z<int(vol_size[2]); ++z ) {
+    uint32_t i=z*vol_size[0]*vol_size[1];
+    for ( uint32_t y=0; y<vol_size[1]; ++y ) 
+    for ( uint32_t x=0; x<vol_size[0]; ++x,++i ) {
+      
+      grad[3*i+0] = int16_t( x<vol_size[0]-1 ? voxels[i+1] : voxels[i] ) -
+                    int16_t( x>0 ? voxels[i-1] : voxels[i] );
+
+      grad[3*i+1] = int16_t( y<vol_size[1]-1 ? voxels[i+ystride] : voxels[i] ) -
+                    int16_t( y>0 ? voxels[i-ystride] : voxels[i] );
+
+      grad[3*i+1] = int16_t( uint32_t(z)<vol_size[2]-1 ? voxels[i+zstride]:voxels[i] ) -
+                    int16_t( uint32_t(z)>0 ? voxels[i-zstride] : voxels[i] );
+    }
+  }
+}
+
+
+double ContourTreeVolumeRenderer::sample_gradient( uint32_t v[8], int d, double x[3] )
+{
+  double t[7]; 
+  t[3] = lerp( grad[3*v[0]+d], grad[3*v[1]+d], x[0]);
+  t[4] = lerp( grad[3*v[2]+d], grad[3*v[3]+d], x[0]);
+  t[5] = lerp( grad[3*v[4]+d], grad[3*v[5]+d], x[0]);
+  t[6] = lerp( grad[3*v[6]+d], grad[3*v[7]+d], x[0]);
+  t[1] = lerp( t[3] , t[4] , x[1]);
+  t[2] = lerp( t[5] , t[6] , x[1]);
+  t[0] = lerp( t[1] , t[2] , x[2]);
+  return t[0];
+}
+

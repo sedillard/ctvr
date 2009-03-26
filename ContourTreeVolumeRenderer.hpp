@@ -216,7 +216,16 @@ struct ContourTreeVolumeRenderer
                    uint32_t num_rows, //how many rows to do?
                    int win_left, //position of window relative to GL
                    int win_bottom );
+  
+  int16_t *grad; //gradients for software rendering. size is 3*nvoxels
+  void compute_gradients();
 
+  //sample a partial derivative
+  double sample_gradient( uint32_t v[8], int d, double x[3] );
+      //v indexes of the 8 cell vertices 
+      //d is the partial dimension,
+      //x is the fractional position of the sample point within the cell
+    
 
 };
 

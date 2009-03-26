@@ -913,7 +913,8 @@ struct Trilinear
           }
           //std::cout << "moving " << s->vert << " (value " << s->value << ")" << std::endl;
           order[end--] = s->vert;
-          s = saddles_sorted[--si];
+          --si;
+          if (si>=0) s = saddles_sorted[si];
         }
         break;
 

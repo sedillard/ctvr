@@ -19,6 +19,7 @@ QMAKE_CXXFLAGS += -fopenmp
 RESOURCES = ctvr.qrc
 
 HEADERS	= \
+  HexMeshRayTracer.hpp \
   ColorMapEditor.hpp \
   ContourTree.hpp \
   ContourTreeVolumeRenderer.hpp \

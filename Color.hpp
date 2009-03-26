@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 struct RGBA8{ uint8_t r,g,b,a; };
+struct RGBAf{ float r,g,b,a; };
 struct HLSA8{ uint8_t h,l,s,a; };
 struct HLSAf{ float h,l,s,a; };
 

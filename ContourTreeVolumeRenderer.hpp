@@ -191,6 +191,23 @@ struct ContourTreeVolumeRenderer
 
   void set_global_tf( RGBA8 *colors );
   void update_global_tf_tex();
+
+  void default_tf();
+
+  uint32_t select_branch( uint32_t up, uint32_t down, float v );
+    //given two starting branches, up and down, and a value v
+    //returns the branch containing v
+
+  void composite_segment ( float length, float fFront, 
+                            float fBack, uint vertAbove, uint vertBelow, 
+                            RGBAf & result ) ;
+
+   
+  void sw_render ( RGBA8 *image,  //output goes here
+                   uint32_t img_width, //how many pixels in an image row?
+                   uint32_t num_rows, //how many rows to do?
+                   int win_left, //position of window relative to GL
+                   int win_bottom );
 };
 
 #endif

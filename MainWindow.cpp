@@ -6,6 +6,7 @@
 
 #include <QApplication>
 #include <QFile>
+#include <QSplitter>
 
 #include "ColorMapEditor.hpp"
 
@@ -61,9 +62,6 @@ int main( int argc, char* argv[] )
   main_window->show();
   main_window->resize(700,600);
 
-  ColorMapEditor *color_map_ed = new ColorMapEditor;
-  color_map_ed->show();
-  app.connect( color_map_ed, SIGNAL(edited(RGBA8*)), main_window, SLOT(tf_edited(RGBA8*)) );
 
   app.exec();
 }
@@ -79,8 +77,20 @@ MainWindow::MainWindow
   ct(ct_),
   ctvr(ctvr_)
 {
-  vr = new VolumeRendererWidget(ctvr,this);
-  setCentralWidget(vr);
+
+
+  QSplitter *split = new QSplitter(this);
+  split->setOrientation(Qt::Vertical);
+  setCentralWidget(split);
+  
+  vr = new VolumeRendererWidget(ctvr,split);
+  cme = new ColorMapEditor(split);
+
+  split->setStretchFactor(0,5);
+  split->setStretchFactor(1,3);
+
+  connect( cme, SIGNAL(edited(RGBA8*)), this, SLOT(tf_edited(RGBA8*)) );
+  
 }
 
 void MainWindow::tf_edited( RGBA8 *colors )

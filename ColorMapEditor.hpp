@@ -1,3 +1,6 @@
+#ifndef COLOR_MAP_EDITOR_HPP
+#define COLOR_MAP_EDITOR_HPP
+
 
 #include <stdint.h>
 
@@ -52,17 +55,5 @@ class ColorMapEditor : public QGLWidget
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+#endif
 

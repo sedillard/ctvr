@@ -7,6 +7,7 @@
 #include "ContourTreeVolumeRenderer.hpp"
 #include "VolumeRendererWidget.hpp"
 #include "Color.hpp"
+#include "ColorMapEditor.hpp"
 
 class MainWindow : public QMainWindow
 {
@@ -15,6 +16,7 @@ class MainWindow : public QMainWindow
   ContourTree *ct;
   ContourTreeVolumeRenderer *ctvr; 
   VolumeRendererWidget *vr;
+  ColorMapEditor *cme;
 
   public:
     MainWindow( ContourTree *ct, ContourTreeVolumeRenderer *ctvr,

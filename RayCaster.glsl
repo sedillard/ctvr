@@ -188,7 +188,7 @@ vec2 get_branch(vec3 p, float f)
         vec2 hi_parent  = texture2D( parent_tex,     hi_branch ).ra;
         vec2 lo_parent  = texture2D( parent_tex,     lo_branch ).ra;
         if (hi_depth > lo_depth) {
-            if (hi_saddle <= f) {
+            if (hi_saddle < f) {
                 the_branch = hi_branch;
                 break;
             } else {
@@ -196,7 +196,7 @@ vec2 get_branch(vec3 p, float f)
                 hi_depth -= 1.0/256.0;
             }
         } else {
-            if (lo_saddle >= f) {
+            if (lo_saddle > f) {
                 the_branch = lo_branch;
                 break;
             } else {
@@ -240,11 +240,13 @@ void main ()
     p += view_vec;
     float f1 = texture3D(scalar_tex,p).a;
     vec4 g = texture2D(global_tf_tex,vec2(f1,0.0));
-    vec2 br = get_branch( p, f0 );
+    vec2 br = get_branch( p, f1 );
     vec4 c = sample_branch_tf(br,f1);
 
     c.rgb *= abs(dot(light_vec,normal(p,f1)));
     c.a *= g.a;
+
+    //if (all(br==vec2(0,0))) c.a = 0;
     
     float a = (1.0-color.a)*c.a;
     color.rgb += a*c.rgb;
@@ -258,7 +260,5 @@ void main ()
   gl_FragColor = color;
 }
 
-
-//yo
 
 

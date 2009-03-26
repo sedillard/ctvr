@@ -125,7 +125,7 @@ struct HexMeshRayTracer
     const double p_[3], 
     const double v_[3] 
   ) 
-  : values(values_),tNear(-HUGE_VAL),tFar(HUGE_VAL)
+  : values(values_),tNear(-HUGE_VAL),tFar(HUGE_VAL),stepDim(0)
   { 
     p[0] = p_[0]; p[1] = p_[1]; p[2] = p_[2];
     v[0] = v_[0]; v[1] = v_[1]; v[2] = v_[2];

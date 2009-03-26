@@ -8,6 +8,12 @@
 #include "Trilinear.hpp"
 #include "Color.hpp"
 
+
+struct Event
+{
+  int from,to,when;
+};
+
 struct ContourTreeVolumeRenderer
 {
   typedef ContourTree::Node Node;
@@ -180,7 +186,9 @@ struct ContourTreeVolumeRenderer
   uint32_t node_cluster_find( uint32_t ) ; 
   
   //process an extremum tracker file
-  void read_tracker_file(const char* filename);
+  std::vector<Event> events;
+  void read_events_file(const char* filename);
+  void do_merge_events( int until ) ;
   void propagate_cluster_info();
   void cluster_tf();
   
@@ -208,6 +216,8 @@ struct ContourTreeVolumeRenderer
                    uint32_t num_rows, //how many rows to do?
                    int win_left, //position of window relative to GL
                    int win_bottom );
+
+
 };
 
 #endif

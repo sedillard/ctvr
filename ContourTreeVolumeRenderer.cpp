@@ -707,8 +707,6 @@ ContourTreeVolumeRenderer::compute_branch_map()
   branch_map.resize( nvoxels, uint32_t(-1) );
   Trilinear<uint8_t> & tl = ct.tl;
 
-  set<uint32_t> mapped;
-
   #pragma omp parallel for
   for ( int i=0; i<int(nvoxels); ++i ) {
     uint32_t up_vert = tl.reachable_max[i];
@@ -721,10 +719,7 @@ ContourTreeVolumeRenderer::compute_branch_map()
     while( branch_lo_val[b] == branch_hi_val[b] ) b=branch_parent[b];
     assert(b != uint32_t(-1));
     branch_map[i] = b;
-    mapped.insert(b);
   }
-
-  cout << "mapped " << mapped.size() << " different branches" << endl;
 
   //free up some memory
   tl.reachable_max = tl.reachable_min = vector<uint32_t>();
@@ -855,19 +850,16 @@ void ContourTreeVolumeRenderer::node_cluster_union( uint32_t a, uint32_t b )
   node_cluster[a] = b; 
 }
 
-void ContourTreeVolumeRenderer::read_tracker_file( const char* filename )
+void ContourTreeVolumeRenderer::read_events_file( const char* filename )
 {
-  node_cluster.resize( ct.nodes.size() );
-  for ( size_t i=0; i<ct.nodes.size(); ++i ) 
-    node_cluster[i] = i; 
-  
+
   ifstream file(filename,ios::in);
   if (!file) {
-    cerr << "could not open tracker file " << filename << endl;
+    cerr << "could not open events file " << filename << endl;
     abort();
   }
-  uint32_t from=0,to=0,when=0;
-  int nmerges=0;
+  events.clear();
+  int from,to,when;
   for (;;) {
     file >> from >> to >> when;
     if (file.eof()) break;
@@ -875,21 +867,36 @@ void ContourTreeVolumeRenderer::read_tracker_file( const char* filename )
       *anode = ct.node_map[from], 
       *bnode = ct.node_map[to];
     if (!anode) {
-      cerr << "tracker file references extremum at id " << from << " but I don't see one there" << endl; 
+      cerr << "events file references extremum at id " << from << " but I don't see one there" << endl; 
       abort();
     }
     if (!bnode) {
-      cerr << "tracker file references extremum at id " << to << " but I don't see one there" << endl; 
+      cerr << "events file references extremum at id " << to << " but I don't see one there" << endl; 
       abort();
     }
+    events.push_back((Event){from,to,when});
+  }
+}
+
+void ContourTreeVolumeRenderer::do_merge_events( int until ) 
+{
+  node_cluster.resize( ct.nodes.size() );
+  for ( size_t i=0; i<ct.nodes.size(); ++i ) 
+    node_cluster[i] = i; 
+  
+  int nmerges=0;
+  foreach( Event & e, events ) {
+    if (e.when >= until ) break;
+    ContourTree::Node 
+      *anode = ct.node_map[e.from], 
+      *bnode = ct.node_map[e.to];
     uint32_t a=anode->id, b=bnode->id;
     if ( node_cluster_find(a) != node_cluster_find(b) ) {
-      ++nmerges; 
+      ++nmerges;
       node_cluster_union(a,b); 
     }
   }
-  cout << "out of ~" << (ct.nodes.size()-1)/2 << " leaves, merged " 
-       << nmerges << endl;
+  cout << "merged " << nmerges << " nodes (up to time " << until << ")" << endl;
 
   propagate_cluster_info();
 }
@@ -899,16 +906,21 @@ void ContourTreeVolumeRenderer::propagate_cluster_info()
   vector<int16_t> valence(ct.nodes.size(),0);
   typedef pair<Arc*,Direction> Pair;
   deque<Pair> nodeq;
+  set<uint32_t> cluster_ids;
   foreach( Node *n, ct.nodes ) {
     if (n->is_max()) {
       nodeq.push_back(make_pair(n->down,Down));
+      cluster_ids.insert(node_cluster[n->id]);
     } else if (n->is_min()) {
       nodeq.push_back(make_pair(n->up,Up));
+      cluster_ids.insert(node_cluster[n->id]);
     } else {
       node_cluster[n->id] = uint32_t(-1);
       valence[n->id] = n->up_degree() + n->down_degree();
     }
   }
+
+  cout << nodeq.size() << " extrema have " << cluster_ids.size() << " unique ids" << endl;
 
   typedef pool_allocator< pair<uint32_t,int>, default_user_allocator_new_delete,
                          details::pool::null_mutex> alloc;
@@ -946,7 +958,6 @@ void ContourTreeVolumeRenderer::propagate_cluster_info()
     }
   }
 
-  
   foreach( uint32_t id, node_cluster ) assert(id!=uint32_t(-1));
 }
 

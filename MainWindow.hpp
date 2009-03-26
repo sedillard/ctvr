@@ -24,6 +24,7 @@ class MainWindow : public QMainWindow
 
   public slots:
     void tf_edited( RGBA8* ); 
+    void lod_changed(int);
 };
 
 

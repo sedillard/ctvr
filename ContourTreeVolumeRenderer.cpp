@@ -852,6 +852,17 @@ void ContourTreeVolumeRenderer::node_cluster_union( uint32_t a, uint32_t b )
   node_cluster[a] = b; 
 }
 
+
+struct compare_event_from {
+  bool operator()( const Event & a, const Event & b )
+  { return a.from < b.from; }
+};
+
+static inline
+bool compare_event_when( const Event & a, const Event & b )
+{ return a.when < b.when; }
+
+
 void ContourTreeVolumeRenderer::read_events_file( const char* filename )
 {
 
@@ -860,9 +871,12 @@ void ContourTreeVolumeRenderer::read_events_file( const char* filename )
     cerr << "could not open events file " << filename << endl;
     abort();
   }
-  events.clear();
+  int nevents=0;
+  typedef map<int,Event> EventSet;
+  EventSet event_set;
   int from,to,when;
   for (;;) {
+    ++nevents;
     file >> from >> to >> when;
     if (file.eof()) break;
     ContourTree::Node 
@@ -876,8 +890,18 @@ void ContourTreeVolumeRenderer::read_events_file( const char* filename )
       cerr << "events file references extremum at id " << to << " but I don't see one there" << endl; 
       abort();
     }
-    events.push_back((Event){from,to,when});
+    //if ( event_set.find(from) != event_set.end() ) {
+    //    cout << "duplicate event " << from << ", previous merged with " << 
+    //    event_set[from].to << ", this one merges with " << to << endl;
+    //}
+    event_set[from] = (Event){from,to,when};
   }
+  events.clear();
+  foreach( EventSet::value_type & e, event_set ) events.push_back( e.second );
+  sort(events.begin(),events.end(),compare_event_when);
+
+  cout << "the events file had " << nevents << " events, " 
+       << event_set.size() << " of which had unique from fields" << endl;
 
 }
 

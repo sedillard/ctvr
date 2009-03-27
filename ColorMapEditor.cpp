@@ -102,7 +102,7 @@ void ColorMapEditor:: mouseMoveEvent(QMouseEvent *event)
 
 void ColorMapEditor:: mouseReleaseEvent( QMouseEvent* )
 {
-  emit edited(rgba);
+  Q_EMIT(edited(rgba));
 }
 
 void

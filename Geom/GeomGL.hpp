@@ -7,6 +7,7 @@
 namespace Geom {
 
 
+inline
 Matrix<4,4,double> get_gl_matrix (GLenum which)
 {
   Matrix<4,4,double> m;

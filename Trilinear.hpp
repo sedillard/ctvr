@@ -738,6 +738,7 @@ struct Trilinear
             int index = 0-(ddx>>31)-(ddy>>31)-(ddz>>31); //arithmetic shift!
             switch(index) {
               case 0 : 
+                //std::cout << "min at " << i-values << std::endl;
                 found_mins.push_back(i-values); 
                 break;
               case 1 :
@@ -745,6 +746,7 @@ struct Trilinear
                 found_saddles.push_back(i-values); 
                 break;
               case 3 : 
+                //std::cout << "max at " << i-values << std::endl;
                 found_maxes.push_back(i-values); 
                 break;
               default: assert(0 && "wtf?");

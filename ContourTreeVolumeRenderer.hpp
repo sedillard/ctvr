@@ -14,6 +14,7 @@ struct Event
   int from,to,when;
 };
 
+
 struct ContourTreeVolumeRenderer
 {
   typedef ContourTree::Node Node;

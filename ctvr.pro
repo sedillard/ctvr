@@ -2,7 +2,7 @@
 TEMPLATE = app
 
 QT += opengl
-CONFIG += warn_on build_all debug_and_release
+CONFIG += warn_on build_all debug no_keywords
 CONFIG(debug, debug|release) {
   TARGET = ctvr_dbg
   MOC_DIR = debug
@@ -19,11 +19,12 @@ QMAKE_CXXFLAGS += -fopenmp
 RESOURCES = ctvr.qrc
 
 HEADERS	= \
-  HexMeshRayTracer.hpp \
   ColorMapEditor.hpp \
   ContourTree.hpp \
   ContourTreeVolumeRenderer.hpp \
+  HexMeshRayTracer.hpp \
   MainWindow.hpp \
+  TreeWidget.hpp \
   VolumeRendererWidget.hpp \
 
 SOURCES	= \
@@ -31,6 +32,7 @@ SOURCES	= \
   ContourTree.cpp \
   ContourTreeVolumeRenderer.cpp \
   MainWindow.cpp \
+  TreeWidget.cpp \
   VolumeRendererWidget.cpp \
 
 

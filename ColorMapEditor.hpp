@@ -49,7 +49,7 @@ class ColorMapEditor : public QGLWidget
   bool colors_need_update;
 
 
-  signals:
+  Q_SIGNALS:
     void edited (RGBA8*);
 };
 

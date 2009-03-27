@@ -903,6 +903,87 @@ void ContourTreeVolumeRenderer::do_merge_events( int until )
   propagate_cluster_info();
 }
 
+
+void ContourTreeVolumeRenderer::propagate_cluster_info()
+{
+  deque<Node*> nodeq;
+  foreach( Node *n, ct.nodes ) {
+    if (n->is_max()) nodeq.push_back(n->down->lo);
+    else if (n->is_min()) nodeq.push_back(n->up->hi);
+    else node_cluster[n->id] = uint32_t(-1);
+  }
+  
+  while (!nodeq.empty()) {
+    Node *n = nodeq.front();
+    nodeq.pop_front();
+    
+    //look at all the neighbors and see how many -1's there are
+    //if there is only one, and the others agree, then mark this node
+    //with that label and push the node with the -1 back on the queue
+    
+    Node *odd_man_out=0;
+    uint32_t label=-1;
+    bool stop=false;
+    for ( Arc *a=n->up; a; a=a->next_up ) {
+      if ( node_cluster[a->hi->id] == uint32_t(-1) ) {
+        if ( !odd_man_out ) {
+          odd_man_out = a->hi;
+        } else {
+          //stop here because there are two neighbors with -1 labels
+          stop=true;
+          break;
+        }
+      } else {
+        if (label == uint32_t(-1)) label = node_cluster[a->hi->id];
+        else if (label != node_cluster[a->hi->id] ) {
+          //stop here because the labels don't agree
+          stop=true;
+          break;
+        }
+      }
+    }
+    for ( Arc *a=n->down; a; a=a->next_down ) {
+      if ( node_cluster[a->lo->id] == uint32_t(-1) ) {
+        if ( !odd_man_out ) {
+          odd_man_out = a->lo;
+        } else {
+          //stop here because there are two neighbors with -1 labels
+          stop=true;
+          break;
+        }
+      } else {
+        if (label == uint32_t(-1)) label = node_cluster[a->lo->id];
+        else if (label != node_cluster[a->lo->id] ) {
+          //stop here because the labels don't agree
+          stop=true;
+          break;
+        }
+      }
+    }
+    if (!stop) {
+      node_cluster[n->id] = label;
+      nodeq.push_back(odd_man_out);
+    }
+  }
+}
+
+/*
+        ....
+         \ /
+          d
+   a     /
+    \   b
+     \ / \
+      c   e 
+      |  / \ 
+      | f   g
+   --------- <- isovalue cut here
+      | 
+      |
+*/
+
+
+#if 0
 void ContourTreeVolumeRenderer::propagate_cluster_info()
 {
   vector<int16_t> valence(ct.nodes.size(),0);
@@ -962,6 +1043,7 @@ void ContourTreeVolumeRenderer::propagate_cluster_info()
 
   foreach( uint32_t id, node_cluster ) assert(id!=uint32_t(-1));
 }
+#endif
 
 
 void ContourTreeVolumeRenderer::cluster_tf()
@@ -983,11 +1065,10 @@ void ContourTreeVolumeRenderer::cluster_tf()
         c->a = 128;
       }
     } else {
+      //i forget what this is supposed to be doing
       for ( RGBA8* c = tf_tex+bounds.first; c!=tf_tex+bounds.second; ++c ) {
         assert(c-tf_tex < ptrdiff_t(tf_size));
-        c->r = c->g = 255; 
-        c->b = 0;
-        c->a = 40; 
+        c->r = c->g = c->b = c->a = 0; 
       }
     }
   }
@@ -999,6 +1080,14 @@ void ContourTreeVolumeRenderer::cluster_tf()
 template <typename T> inline 
 double lerp( const T & a, const T & b, const double & t )
 { return (1-t)*double(a) + t*double(b) ; }
+
+static void
+maybe_normalize( Vec3d & v )
+{
+  double n = sqr_norm(v);
+  if (n!=0) v/=n;
+}
+
 
 void ContourTreeVolumeRenderer::sw_render
 ( RGBA8 *image,
@@ -1017,6 +1106,7 @@ void ContourTreeVolumeRenderer::sw_render
   glGetIntegerv(GL_VIEWPORT,vp);
 
   //#pragma omp parallel for
+  #if 0
   for (int j = 0; j < int(num_rows); j++)
   for (uint32_t i = 0; i < img_width; i++) {
 
@@ -1034,59 +1124,49 @@ void ContourTreeVolumeRenderer::sw_render
           tracer; ++tracer ) 
     {
       ++nsteps;
-      double fFront, fBack;
-      Vec3d pFront, pBack; //global location of segment endpoints
-      Vec3d pos; //cell-local position
 
-      double tlFront[7], tlBack[7]; //trilinear interpolation tree
-      double * tlMin, * tlMax;
-
-      uint maxVert = 0, minVert = 0;
-      uint maxTrace = 0, minTrace = 0;
-
-      ///////////////////////
-      //////compute front value
-      ///////////////////////
-      pFront = org + tracer.tFront()*dir;
+      //get points at front and back of ray segmen
+      Vec3d pFront = org + tracer.tFront()*dir,
+            pBack = org + tracer.tBack()*dir;
       
-      pos[0] = pFront[0] - floor(pFront[0]);
-      pos[1] = pFront[1] - floor(pFront[1]);
-      pos[2] = pFront[2] - floor(pFront[2]);
+      //put points in cell-local coordinates
+      for (int d=0; d<3; ++d) {
+        pFront[d] -= floor(pFront[d]);
+        pBack[d] -= floor(pBack[d]);
+      }
+
+      //do trilinear interpolation
+      double tlFront[7], tlBack[7]; 
+        //these store the intermediate values of trilinear interpolation
+        //which we use for finding a monotone path from the sample points
+        //to cell vertices
 
       tlFront[3] = lerp( tracer.F[0], tracer.F[1], pos[0]);
       tlFront[4] = lerp( tracer.F[2], tracer.F[3], pos[0]);
       tlFront[5] = lerp( tracer.F[4], tracer.F[5], pos[0]);
       tlFront[6] = lerp( tracer.F[6], tracer.F[7], pos[0]);
-
       tlFront[1] = lerp( tlFront[3] , tlFront[4] , pos[1]);
       tlFront[2] = lerp( tlFront[5] , tlFront[6] , pos[1]);
-
       tlFront[0] = lerp( tlFront[1] , tlFront[2] , pos[2]);
-
-      fFront = tlFront[0];
-
-      ///////////////////
-      //compute back value
-      //////////////////
-      pBack = org + ( tracer.tBack() * dir  );
-
-      pos[0] = pBack[0] - floor(pBack[0]);
-      pos[1] = pBack[1] - floor(pBack[1]);
-      pos[2] = pBack[2] - floor(pBack[2]);
+      double fFront = tlFront[0]; //value at the front point
 
       tlBack[3] = lerp( tracer.F[0], tracer.F[1], pos[0]);
       tlBack[4] = lerp( tracer.F[2], tracer.F[3], pos[0]);
       tlBack[5] = lerp( tracer.F[4], tracer.F[5], pos[0]);
       tlBack[6] = lerp( tracer.F[6], tracer.F[7], pos[0]);
-
       tlBack[1] = lerp( tlBack[3] , tlBack[4] , pos[1]);
       tlBack[2] = lerp( tlBack[5] , tlBack[6] , pos[1]);
-
       tlBack[0] = lerp( tlBack[1] , tlBack[2] , pos[2]);
+      double fBack = tlBack[0]; //value at the back point
 
-      fBack = tlBack[0];
+      //find a monotone path from the sample points to cell vertices,
+      //in order to locate the branches containing the samples
+      uint32_t maxVert=0, minVert=0;
+      uint32_t maxTrace=0, minTrace=0;
+      double *tlMin, *tlMax;
 
-      ////////////////
+      //start the search for the lower vertex from the lower sample point, and
+      //likewise for the upper vertex
       if (fFront < fBack) {	
         tlMin = tlFront; 
         tlMax = tlBack;
@@ -1095,57 +1175,65 @@ void ContourTreeVolumeRenderer::sw_render
         tlMax = tlFront;
       }
               
-      ///////////////
-      //find branches above and below
-      /////////////
-
-      //start min trace
+      //find vertex below
       if ( tlMin[2] > tlMin[1] ) {
-              minTrace = 1;
+        minTrace = 1;
       } else {
-              minVert += 4;
-              minTrace = 2;
+        minVert += 4;
+        minTrace = 2;
       }
-
-      //comparison 2 for minTrace 
       if ( tlMin[ (minTrace<<1)+1 ] > tlMin[(minTrace<<1)+2] )  {
-              minVert += 2;
+        minVert += 2;
       }
-
-      //comparison 3 for minTrace
       if ( voxels[tracer.verts[minVert+1]] < voxels[tracer.verts[minVert]] ) {
-              minVert += 1;
+        minVert += 1;
       }
 
-      //start max trace
+      //find vertex above
       if ( tlMax[2] > tlMax[1] ) {
-              maxVert += 4;
-              maxTrace = 2;
+        maxVert += 4;
+        maxTrace = 2;
       } else {
-              maxTrace = 1;
+        maxTrace = 1;
       }
-
-      //comparison 2 for maxTrace
       if ( tlMax[ (maxTrace<<1)+1] < tlMin[(maxTrace<<1)+2] ) {
-              maxVert += 2;
+        maxVert += 2;
+      }
+      if ( voxels[tracer.verts[maxVert+1]] > voxels[tracer.verts[maxVert]] ) {
+        maxVert+= 1;
       }
 
-      //comparison 3 for maxTrace
-      if ( voxels[tracer.verts[maxVert+1]] > voxels[tracer.verts[maxVert]] ) {
-              maxVert+= 1;
-      }
+      //get branches
+      uint32_t br_up   = branch_map[tracer.verts[maxVert]];
+      uint32_t br_down = branch_map[tracer.verts[minVert]];
+
+      //get gradients at front and back points
+      Vec3d fGrad, bGrad;
+
+      fGrad[0] = sample_gradient(tracer.verts,0,&pos[0]);
+      fGrad[1] = sample_gradient(tracer.verts,1,&pos[0]);
+      fGrad[2] = sample_gradient(tracer.verts,2,&pos[0]);
+
+      bGrad[0] = sample_gradient(tracer.verts,0,&pos[0]);
+      bGrad[1] = sample_gradient(tracer.verts,1,&pos[0]);
+      bGrad[2] = sample_gradient(tracer.verts,2,&pos[0]);
+
+      //maybe_normalize(fGrad);
+      //maybe_normalize(bGrad);
 
       { // Composite
 
-        double f = 0.5 * (fFront+fBack);
+        if ( fabs(fFront-fBack) < 1 ) {
+          //segment has only one transfer function entry
+        
+        }
+        //double f = 0.5 * (fFront+fBack);
         int f0 = int(f);
         int f1 = f0 + 1;
         double frac = f - f0;
-        double length = tracer.tBack() - tracer.tFront();
 
-        //get branch
-        uint32_t up = branch_map[tracer.verts[maxVert]];
-        uint32_t down = branch_map[tracer.verts[minVert]];
+        
+        double length = tracer.tBack() - tracer.tFront();
 
         uint32_t br = select_branch(up, down, f );
         uint32_t off = branch_tf_offset[br] - uint32_t(branch_lo_val[br]*(tf_res-1));
@@ -1157,16 +1245,6 @@ void ContourTreeVolumeRenderer::sw_render
         float b = lerp( float(c0.b)/255.0f, float(c1.b)/255.0f, frac ); 
         float a = lerp( float(c0.a)/255.0f, float(c1.a)/255.0f, frac ); 
 
-        Vec3d grad;
-        grad[0] = sample_gradient(tracer.verts,0,&pos[0]);
-        grad[1] = sample_gradient(tracer.verts,1,&pos[0]);
-        grad[2] = sample_gradient(tracer.verts,2,&pos[0]);
-        double grad_norm = sqr_norm(grad);
-        if ( grad_norm > 0 ) {
-          grad /= sqrt(grad_norm);
-          double l = 0.2 + 0.8 * abs(dot(grad,light_vec));
-          r*=l; g*=l; b*=l;
-        }
 
         float global = global_tf_tex[int(f0)].a/255.0f;
         a *= global;
@@ -1195,6 +1273,7 @@ void ContourTreeVolumeRenderer::sw_render
     out.b = uint8_t(255.0*result.b);
     out.a = uint8_t(255.0*result.a);
   }
+  #endif
 }
 
 
@@ -1255,5 +1334,7 @@ double ContourTreeVolumeRenderer::sample_gradient( uint32_t v[8], int d, double 
   t[0] = lerp( t[1] , t[2] , x[2]);
   return t[0];
 }
+
+
 
 

@@ -1101,6 +1101,7 @@ void ContourTreeVolumeRenderer::cluster_tf()
       double hue = 360* rand()/double(RAND_MAX);
       float r,g,b;
       hls_to_rgb(hue,0.5,1,r,g,b);
+      cout << "hue is " << hue << endl;
       for ( RGBA8* c = tf_tex+bounds.first; c!=tf_tex+bounds.second; ++c ) {
         assert(c-tf_tex < ptrdiff_t(tf_size));
         c->r = uint8_t(255.0*r);

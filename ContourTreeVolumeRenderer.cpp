@@ -15,7 +15,6 @@
 #include "ContourTree.hpp"
 #include "ContourTreeVolumeRenderer.hpp"
 #include "HexMeshRayTracer.hpp"
-#include "Geom/Geom.hpp"
 
 #include <boost/foreach.hpp>
 
@@ -91,6 +90,8 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   assert(nrows   == tl.size[1]);
   assert(nstacks == tl.size[2]);
 
+  gradients = 0;
+
   //compute branch decomposition properties
   compute_branch_properties();
   compute_branch_map();
@@ -134,7 +135,6 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   init_branch_textures();
   default_tf();
 
-  grad = 0;
 }
 
 
@@ -590,9 +590,9 @@ ContourTreeVolumeRenderer::enable_gl()
         glGetDoublev(GL_PROJECTION_MATRIX,proj);
         gluUnProject( vp[2]/2, vp[3]/2, 0, mv,proj,vp, f,f+1,f+2 );
         gluUnProject( vp[2]/2, vp[3]/2, 1, mv,proj,vp, b,b+1,b+2 );
-        double vx=b[0]-f[0], vy=b[1]-f[1], vz=b[2]-f[2];
-        double norm = sqrt(vx*vx+vy*vy+vz*vz);
-        glUniform3f( light_vec_ul, vx/norm, vy/norm, vz/norm );
+        light_vec = vec3(b[0]-f[0], b[1]-f[1], b[2]-f[2] );
+        light_vec.normalize();
+        glUniform3f( light_vec_ul, light_vec[0],light_vec[1],light_vec[2] );
     }
     
     { //compute view vector for ray stepping
@@ -1008,6 +1008,7 @@ void ContourTreeVolumeRenderer::sw_render
   int win_bottom
 )
 {
+  if (!gradients) compute_gradients();
 
   GLdouble mv[16],proj[16];
   GLint vp[4];
@@ -1034,8 +1035,8 @@ void ContourTreeVolumeRenderer::sw_render
     {
       ++nsteps;
       double fFront, fBack;
-      Vec3d pFront, pBack;
-      double xfrac, yfrac, zfrac;
+      Vec3d pFront, pBack; //global location of segment endpoints
+      Vec3d pos; //cell-local position
 
       double tlFront[7], tlBack[7]; //trilinear interpolation tree
       double * tlMin, * tlMax;
@@ -1048,19 +1049,19 @@ void ContourTreeVolumeRenderer::sw_render
       ///////////////////////
       pFront = org + tracer.tFront()*dir;
       
-      xfrac = pFront[0] - floor(pFront[0]);
-      yfrac = pFront[1] - floor(pFront[1]);
-      zfrac = pFront[2] - floor(pFront[2]);
+      pos[0] = pFront[0] - floor(pFront[0]);
+      pos[1] = pFront[1] - floor(pFront[1]);
+      pos[2] = pFront[2] - floor(pFront[2]);
 
-      tlFront[3] = lerp( tracer.F[0], tracer.F[1], xfrac);
-      tlFront[4] = lerp( tracer.F[2], tracer.F[3], xfrac);
-      tlFront[5] = lerp( tracer.F[4], tracer.F[5], xfrac);
-      tlFront[6] = lerp( tracer.F[6], tracer.F[7], xfrac);
+      tlFront[3] = lerp( tracer.F[0], tracer.F[1], pos[0]);
+      tlFront[4] = lerp( tracer.F[2], tracer.F[3], pos[0]);
+      tlFront[5] = lerp( tracer.F[4], tracer.F[5], pos[0]);
+      tlFront[6] = lerp( tracer.F[6], tracer.F[7], pos[0]);
 
-      tlFront[1] = lerp( tlFront[3] , tlFront[4] , yfrac);
-      tlFront[2] = lerp( tlFront[5] , tlFront[6] , yfrac);
+      tlFront[1] = lerp( tlFront[3] , tlFront[4] , pos[1]);
+      tlFront[2] = lerp( tlFront[5] , tlFront[6] , pos[1]);
 
-      tlFront[0] = lerp( tlFront[1] , tlFront[2] , zfrac);
+      tlFront[0] = lerp( tlFront[1] , tlFront[2] , pos[2]);
 
       fFront = tlFront[0];
 
@@ -1069,19 +1070,19 @@ void ContourTreeVolumeRenderer::sw_render
       //////////////////
       pBack = org + ( tracer.tBack() * dir  );
 
-      xfrac = pBack[0] - floor(pBack[0]);
-      yfrac = pBack[1] - floor(pBack[1]);
-      zfrac = pBack[2] - floor(pBack[2]);
+      pos[0] = pBack[0] - floor(pBack[0]);
+      pos[1] = pBack[1] - floor(pBack[1]);
+      pos[2] = pBack[2] - floor(pBack[2]);
 
-      tlBack[3] = lerp( tracer.F[0], tracer.F[1], xfrac);
-      tlBack[4] = lerp( tracer.F[2], tracer.F[3], xfrac);
-      tlBack[5] = lerp( tracer.F[4], tracer.F[5], xfrac);
-      tlBack[6] = lerp( tracer.F[6], tracer.F[7], xfrac);
+      tlBack[3] = lerp( tracer.F[0], tracer.F[1], pos[0]);
+      tlBack[4] = lerp( tracer.F[2], tracer.F[3], pos[0]);
+      tlBack[5] = lerp( tracer.F[4], tracer.F[5], pos[0]);
+      tlBack[6] = lerp( tracer.F[6], tracer.F[7], pos[0]);
 
-      tlBack[1] = lerp( tlBack[3] , tlBack[4] , yfrac);
-      tlBack[2] = lerp( tlBack[5] , tlBack[6] , yfrac);
+      tlBack[1] = lerp( tlBack[3] , tlBack[4] , pos[1]);
+      tlBack[2] = lerp( tlBack[5] , tlBack[6] , pos[1]);
 
-      tlBack[0] = lerp( tlBack[1] , tlBack[2] , zfrac);
+      tlBack[0] = lerp( tlBack[1] , tlBack[2] , pos[2]);
 
       fBack = tlBack[0];
 
@@ -1134,11 +1135,51 @@ void ContourTreeVolumeRenderer::sw_render
               maxVert+= 1;
       }
 
-      composite_segment( 
-        tracer.tBack()-tracer.tFront(), 
-        fFront, fBack, 
-        tracer.verts[maxVert], tracer.verts[minVert], 
-        result);
+      { // Composite
+
+        double f = 0.5 * (fFront+fBack);
+        int f0 = int(f);
+        int f1 = f0 + 1;
+        double frac = f - f0;
+        double length = tracer.tBack() - tracer.tFront();
+
+        //get branch
+        uint32_t up = branch_map[tracer.verts[maxVert]];
+        uint32_t down = branch_map[tracer.verts[minVert]];
+
+        uint32_t br = select_branch(up, down, f );
+        uint32_t off = branch_tf_offset[br] - uint32_t(branch_lo_val[br]*(tf_res-1));
+        const RGBA8 &c0 = tf_tex[off+int32_t(f0)+1];
+        const RGBA8 &c1 = tf_tex[off+int32_t(f1)+1];
+
+        float r = lerp( float(c0.r)/255.0f, float(c1.r)/255.0f, frac ); 
+        float g = lerp( float(c0.g)/255.0f, float(c1.g)/255.0f, frac ); 
+        float b = lerp( float(c0.b)/255.0f, float(c1.b)/255.0f, frac ); 
+        float a = lerp( float(c0.a)/255.0f, float(c1.a)/255.0f, frac ); 
+
+        Vec3d grad;
+        grad[0] = sample_gradient(tracer.verts,0,&pos[0]);
+        grad[1] = sample_gradient(tracer.verts,1,&pos[0]);
+        grad[2] = sample_gradient(tracer.verts,2,&pos[0]);
+        double grad_norm = sqr_norm(grad);
+        if ( grad_norm > 0 ) {
+          grad /= sqrt(grad_norm);
+          double l = 0.2 + 0.8 * abs(dot(grad,light_vec));
+          r*=l; g*=l; b*=l;
+        }
+
+        float global = global_tf_tex[int(f0)].a/255.0f;
+        a *= global;
+
+        a = 1.0f - powf( 1.0f - a, length);
+        float alpha = (1.0f-result.a)*a;
+
+        //cout << "a = " << a << ", result.a = " << result.a << endl;
+        result.r += alpha * r;
+        result.g += alpha * g;
+        result.b += alpha * b;
+        result.a += alpha;
+      } // Composite
 
       //if (result.a > 0.95) break;
     }
@@ -1174,57 +1215,11 @@ ContourTreeVolumeRenderer::select_branch( uint32_t up, uint32_t down, float val 
 }
 
 
-void ContourTreeVolumeRenderer::composite_segment
-( float length, 
-  float fFront, 
-  float fBack, 
-  uint vertAbove, uint vertBelow, 
-  RGBAf & result ) 
-{
-  double f = 0.5 * (fFront+fBack);
-  int f0 = int(f);
-  int f1 = f0 + 1;
-  double frac = f - f0;
-
-  //cout << "f = " << f << ", len = " << length << endl;
-
-  //get branch
-  uint32_t up = branch_map[vertAbove];
-  uint32_t down = branch_map[vertBelow];
-
-  uint32_t br = select_branch(up, down, f );
-  uint32_t off = branch_tf_offset[br] - uint32_t(branch_lo_val[br]*(tf_res-1));
-  const RGBA8 &c0 = tf_tex[off+int32_t(f0)+1];
-  const RGBA8 &c1 = tf_tex[off+int32_t(f1)+1];
-
-  //cout << int(c0.r) << ',' << int(c0.g) << ',' << int(c0.b) << endl;
-
-  float r = lerp( float(c0.r)/255.0f, float(c1.r)/255.0f, frac ); 
-  float g = lerp( float(c0.g)/255.0f, float(c1.g)/255.0f, frac ); 
-  float b = lerp( float(c0.b)/255.0f, float(c1.b)/255.0f, frac ); 
-  float a = lerp( float(c0.a)/255.0f, float(c1.a)/255.0f, frac ); 
-
-  float ga = global_tf_tex[int(f0)].a/255.0f;
-  a *= ga;
-
-  a = 1.0f - powf( 1.0f - a, length);
-  float alpha = (1.0f-result.a)*a;
-
-
-  //cout << "a = " << a << ", result.a = " << result.a << endl;
-  result.r += alpha * r;
-  result.g += alpha * g;
-  result.b += alpha * b;
-  result.a += alpha;
-
-}
-
-
 
 
 void ContourTreeVolumeRenderer::compute_gradients()
 {
-  grad = new int16_t[nvoxels];
+  gradients = new int16_t[3*nvoxels];
   uint32_t ystride = vol_size[0], zstride = vol_size[0]*vol_size[1];
   #pragma omp parallel for
   for ( int z=0; z<int(vol_size[2]); ++z ) {
@@ -1232,14 +1227,17 @@ void ContourTreeVolumeRenderer::compute_gradients()
     for ( uint32_t y=0; y<vol_size[1]; ++y ) 
     for ( uint32_t x=0; x<vol_size[0]; ++x,++i ) {
       
-      grad[3*i+0] = int16_t( x<vol_size[0]-1 ? voxels[i+1] : voxels[i] ) -
-                    int16_t( x>0 ? voxels[i-1] : voxels[i] );
+      gradients[3*i+0] = 
+        int16_t( x<vol_size[0]-1 ? voxels[i+1] : voxels[i] ) -
+        int16_t( x>0 ? voxels[i-1] : voxels[i] );
 
-      grad[3*i+1] = int16_t( y<vol_size[1]-1 ? voxels[i+ystride] : voxels[i] ) -
-                    int16_t( y>0 ? voxels[i-ystride] : voxels[i] );
+      gradients[3*i+1] = 
+        int16_t( y<vol_size[1]-1 ? voxels[i+ystride] : voxels[i] ) -
+        int16_t( y>0 ? voxels[i-ystride] : voxels[i] );
 
-      grad[3*i+1] = int16_t( uint32_t(z)<vol_size[2]-1 ? voxels[i+zstride]:voxels[i] ) -
-                    int16_t( uint32_t(z)>0 ? voxels[i-zstride] : voxels[i] );
+      gradients[3*i+2] = 
+        int16_t( uint32_t(z)<vol_size[2]-1 ? voxels[i+zstride]:voxels[i] ) -
+        int16_t( uint32_t(z)>0 ? voxels[i-zstride] : voxels[i] );
     }
   }
 }
@@ -1248,13 +1246,14 @@ void ContourTreeVolumeRenderer::compute_gradients()
 double ContourTreeVolumeRenderer::sample_gradient( uint32_t v[8], int d, double x[3] )
 {
   double t[7]; 
-  t[3] = lerp( grad[3*v[0]+d], grad[3*v[1]+d], x[0]);
-  t[4] = lerp( grad[3*v[2]+d], grad[3*v[3]+d], x[0]);
-  t[5] = lerp( grad[3*v[4]+d], grad[3*v[5]+d], x[0]);
-  t[6] = lerp( grad[3*v[6]+d], grad[3*v[7]+d], x[0]);
+  t[3] = lerp( gradients[3*v[0]+d], gradients[3*v[1]+d], x[0]);
+  t[4] = lerp( gradients[3*v[2]+d], gradients[3*v[3]+d], x[0]);
+  t[5] = lerp( gradients[3*v[4]+d], gradients[3*v[5]+d], x[0]);
+  t[6] = lerp( gradients[3*v[6]+d], gradients[3*v[7]+d], x[0]);
   t[1] = lerp( t[3] , t[4] , x[1]);
   t[2] = lerp( t[5] , t[6] , x[1]);
   t[0] = lerp( t[1] , t[2] , x[2]);
   return t[0];
 }
+
 

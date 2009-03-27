@@ -7,7 +7,7 @@
 #include "ContourTree.hpp"
 #include "Trilinear.hpp"
 #include "Color.hpp"
-
+#include "Geom/Geom.hpp"
 
 struct Event
 {
@@ -34,9 +34,8 @@ struct ContourTreeVolumeRenderer
 
 
     //^^^^^^^^^^^^^^^^^^^/
-    // branch properties /
+   // branch properties /
   //___________________/
-  
 
   std::vector< uint32_t > branch_parent; //branch id -> branch id
   std::vector< uint32_t > branch_depth; //branch id -> int
@@ -54,7 +53,7 @@ struct ContourTreeVolumeRenderer
   std::vector<uint32_t> node_cluster; // node id -> node id
 
     //^^^^^^^^^^^^^^^^^^^^^^^^^/
-    // transfer function stuff /
+   // transfer function stuff /
   //_________________________/
   uint32_t tf_res; //transfer function resolution: how many entries
 
@@ -103,7 +102,7 @@ struct ContourTreeVolumeRenderer
       //for each branch, yields the value of the surface there
 
     //^^^^^^^^^^^^^^/ 
-    // Shader stuff / 
+   // Shader stuff / 
   //______________/ 
   GLuint program_id;  // The combined shader's program name, to be used with
                       //   glUseProgram
@@ -145,6 +144,7 @@ struct ContourTreeVolumeRenderer
 
   uint32_t max_shader_itrs;
 
+  Geom::Vec3d light_vec;
     
   //functions to compute things like branch_parent, branch_saddle_val, etc.
   void compute_branch_properties();
@@ -206,18 +206,13 @@ struct ContourTreeVolumeRenderer
     //given two starting branches, up and down, and a value v
     //returns the branch containing v
 
-  void composite_segment ( float length, float fFront, 
-                            float fBack, uint vertAbove, uint vertBelow, 
-                            RGBAf & result ) ;
-
-   
   void sw_render ( RGBA8 *image,  //output goes here
                    uint32_t img_width, //how many pixels in an image row?
                    uint32_t num_rows, //how many rows to do?
                    int win_left, //position of window relative to GL
                    int win_bottom );
   
-  int16_t *grad; //gradients for software rendering. size is 3*nvoxels
+  int16_t *gradients; //gradients for software rendering. size is 3*nvoxels
   void compute_gradients();
 
   //sample a partial derivative
@@ -226,7 +221,6 @@ struct ContourTreeVolumeRenderer
       //d is the partial dimension,
       //x is the fractional position of the sample point within the cell
     
-
 };
 
 #endif

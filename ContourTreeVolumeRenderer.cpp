@@ -133,7 +133,7 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   }
   
   init_branch_textures();
-  default_tf();
+  //default_tf();
 
 }
 
@@ -813,8 +813,8 @@ ContourTreeVolumeRenderer::arc_tf_bounds(ContourTree::Arc* arc)
   float a_lo = floor( (tl.value(arc->lo->vertex)/255.0f)*(tf_res-1) );
   float a_hi = ceil ( (tl.value(arc->hi->vertex)/255.0f)*(tf_res-1) );
 
-  uint32_t o = branch_tf_offset[b] - uint32_t(floor(lo*(tf_res-1)));;
-  return make_pair(o+uint32_t(a_lo), o+uint32_t(a_hi));
+  uint32_t o = branch_tf_offset[b] - uint32_t(floor(lo*(tf_res-1))) + 1;
+  return make_pair(o+uint32_t(a_lo), o+uint32_t(a_hi)+1);
 }
 
 void ContourTreeVolumeRenderer::test_tf()
@@ -878,6 +878,7 @@ void ContourTreeVolumeRenderer::read_events_file( const char* filename )
     }
     events.push_back((Event){from,to,when});
   }
+
 }
 
 void ContourTreeVolumeRenderer::do_merge_events( int until ) 
@@ -898,6 +899,11 @@ void ContourTreeVolumeRenderer::do_merge_events( int until )
       node_cluster_union(a,b); 
     }
   }
+
+  foreach( Node *n, ct.nodes ) {
+    node_cluster[n->id] = node_cluster_find(n->id);
+  }
+
   cout << "merged " << nmerges << " nodes (up to time " << until << ")" << endl;
 
   propagate_cluster_info();
@@ -907,12 +913,19 @@ void ContourTreeVolumeRenderer::do_merge_events( int until )
 void ContourTreeVolumeRenderer::propagate_cluster_info()
 {
   deque<Node*> nodeq;
+
+  set<uint32_t> labels;
   foreach( Node *n, ct.nodes ) {
     if (n->is_max()) nodeq.push_back(n->down->lo);
     else if (n->is_min()) nodeq.push_back(n->up->hi);
     else node_cluster[n->id] = uint32_t(-1);
+
+    labels.insert(node_cluster[n->id]);
   }
   
+  cout << "there are " << labels.size() << " unique labels on " << nodeq.size() << " leaves " << endl;
+  
+  int nmarked=0;
   while (!nodeq.empty()) {
     Node *n = nodeq.front();
     nodeq.pop_front();
@@ -961,10 +974,14 @@ void ContourTreeVolumeRenderer::propagate_cluster_info()
       }
     }
     if (!stop) {
+      ++nmarked;
       node_cluster[n->id] = label;
-      nodeq.push_back(odd_man_out);
+      if (odd_man_out) nodeq.push_back(odd_man_out);
     }
   }
+
+  cout << "marked " << nmarked << " saddles " << endl;
+
 }
 
 /*
@@ -1051,8 +1068,11 @@ void ContourTreeVolumeRenderer::cluster_tf()
   cout << "setting automatic transfer function based on cluster" << endl;
   foreach( Arc* a, ct.arcs ) {
     pair<uint32_t,uint32_t> bounds = arc_tf_bounds(a);
-    
-    if ( node_cluster[a->hi->id] == node_cluster[a->lo->id] ) {
+
+    if ( node_cluster[a->hi->id] != uint32_t(-1) &&
+         node_cluster[a->lo->id] != uint32_t(-1) )
+    {
+      assert( node_cluster[a->hi->id] == node_cluster[a->lo->id] );
       srand(node_cluster[a->hi->id]);
       double hue = 360* rand()/double(RAND_MAX);
       float r,g,b;

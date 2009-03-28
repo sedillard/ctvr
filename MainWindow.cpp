@@ -85,8 +85,8 @@ MainWindow::MainWindow
   
   vr = new VolumeRendererWidget(ctvr,split);
   cme = new ColorMapEditor(split);
-  tw = new TreeWidget(ctvr);
-  tw->show();
+  //tw = new TreeWidget(ctvr);
+  //tw->show();
 
   split->setStretchFactor(0,2);
   split->setStretchFactor(1,1);
@@ -118,5 +118,5 @@ void MainWindow::lod_changed(int t)
   vr->makeCurrent();
   ctvr->update_tf_tex();
   vr->update();
-  tw->update();
+  //tw->update();
 }

@@ -115,11 +115,10 @@ void TreeWidget::draw_tree()
          ctvr->node_cluster[n->id] != uint32_t(-1) ) 
     {
       srand( ctvr->node_cluster[n->id] );
-      double r = rand()/double(RAND_MAX);
-      double g = rand()/double(RAND_MAX);
-      double b = rand()/double(RAND_MAX);
-      double m = sqrt(r*r+g*g+b*b);
-      glColor4f(r/m,g/m,b/m,0.5);
+      float r,g,b;
+      float hue = 360 * (rand()/double(RAND_MAX));
+      hls_to_rgb(hue,0.5,1.0,r,g,b);
+      glColor4f(r,g,b,0.5);
       glVertex2d( xpos[n->id], tl->value(n->vertex) );
     } 
   }

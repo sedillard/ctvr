@@ -129,7 +129,7 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   tf_tex = (RGBA8*)malloc( sizeof(RGBA8)*tf_tex_nrows*tf_tex_ncols );
   //init to black to see errors
   for ( uint32_t i=0; i<tf_tex_nrows*tf_tex_ncols; ++i ) {
-    tf_tex[i] = (RGBA8){0,0,0,255}; 
+    tf_tex[i] = (RGBA8){0,0,0,0}; 
   }
   
   init_branch_textures();
@@ -965,15 +965,13 @@ void ContourTreeVolumeRenderer::propagate_cluster_info()
       if ( node_cluster[a->hi->id] == uint32_t(-1) ) {
         if ( !odd_man_out ) {
           odd_man_out = a->hi;
-        } else {
-          //stop here because there are two neighbors with -1 labels
+        } else { //stop here because there are two neighbors with -1 labels
           stop=true;
           break;
         }
       } else {
         if (label == uint32_t(-1)) label = node_cluster[a->hi->id];
-        else if (label != node_cluster[a->hi->id] ) {
-          //stop here because the labels don't agree
+        else if (label != node_cluster[a->hi->id] ) { //stop here because the labels don't agree
           stop=true;
           break;
         }
@@ -1090,6 +1088,7 @@ void ContourTreeVolumeRenderer::propagate_cluster_info()
 void ContourTreeVolumeRenderer::cluster_tf()
 {
   cout << "setting automatic transfer function based on cluster" << endl;
+  
   foreach( Arc* a, ct.arcs ) {
     pair<uint32_t,uint32_t> bounds = arc_tf_bounds(a);
 
@@ -1098,10 +1097,9 @@ void ContourTreeVolumeRenderer::cluster_tf()
     {
       assert( node_cluster[a->hi->id] == node_cluster[a->lo->id] );
       srand(node_cluster[a->hi->id]);
-      double hue = 360* rand()/double(RAND_MAX);
+      double hue = 360* (rand()/double(RAND_MAX));
       float r,g,b;
       hls_to_rgb(hue,0.5,1,r,g,b);
-      cout << "hue is " << hue << endl;
       for ( RGBA8* c = tf_tex+bounds.first; c!=tf_tex+bounds.second; ++c ) {
         assert(c-tf_tex < ptrdiff_t(tf_size));
         c->r = uint8_t(255.0*r);

@@ -260,18 +260,16 @@ void main ()
 
     vec4 g = (f0 - isoval) * (f1 - isoval) > 0 ? vec4(0,0,0,0) : vec4(1,1,1,0.2);
     float t = abs(f0-isoval) / (abs(f1-isoval)+abs(f0-isoval));
-    
     vec3 nrml = normalize( (1.0-t)*g0 + t*g1 ) ;
-    
-    g.rgb *= abs(dot(light_vec,nrml));
+    float light = abs(dot(light_vec,nrml));
+    g.rgb *= light;
 
     vec2 br = get_branch( p, f1 );
     vec4 c = sample_branch_tf(br,f1);
+    c.rgb *= 0.5 + 0.5*light;
     c.a *= glob.a; 
     c = c+g;
     c = clamp(c,0.0,1.0);
-
-
     
     float a = (1.0-color.a)*c.a;
     color.rgb += a*c.rgb;

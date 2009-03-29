@@ -2,7 +2,7 @@
 TEMPLATE = app
 
 QT += opengl
-CONFIG += warn_on build_all release  no_keywords
+CONFIG += warn_on build_all debug_and_release  no_keywords
 CONFIG(debug, debug|release) {
   TARGET = ctvr_dbg
   MOC_DIR = debug

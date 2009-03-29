@@ -99,8 +99,6 @@ struct ContourTreeVolumeRenderer
   GLubyte *aux_scalar_tex; 
       //the auxiliary scalar texture (eg, original/unsmoothed data)
 
-  GLubyte *surface_val_tex;
-      //for each branch, yields the value of the surface there
 
     //^^^^^^^^^^^^^^/ 
    // Shader stuff / 
@@ -121,7 +119,6 @@ struct ContourTreeVolumeRenderer
   GLuint parent_tex_id;
   GLuint depth_tex_id;
   GLuint saddle_val_tex_id;
-  GLuint surface_val_tex_id;
 
   //The locations of the shader sampler uniform variables
   GLuint scalar_tex_ul;
@@ -133,7 +130,9 @@ struct ContourTreeVolumeRenderer
   GLuint parent_tex_ul;
   GLuint depth_tex_ul;
   GLuint saddle_val_tex_ul;
-  GLuint surface_val_tex_ul;
+  GLuint isoval_ul;
+
+  float isoval; //value of the single global isosurface
 
   //Some other uniform variables
   GLuint br_tex_size_ul;

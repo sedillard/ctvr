@@ -45,6 +45,8 @@ uniform vec3 z_inch;
 
 uniform sampler2D global_tf_tex;
 
+uniform float isoval;
+
 // x_down,y_up,etc..
 // These round a texture coordinate up or down to the nearest 
 // texel boundary in a given dimension. Logically:
@@ -139,6 +141,15 @@ vec3 normal(vec3 p, float f)
     grad.y = texture3D( scalar_tex, p + y_inch ).a - f;
     grad.z = texture3D( scalar_tex, p + z_inch ).a - f;
     return normalize(grad);
+}
+
+vec3 gradient(vec3 p, float f)
+{
+    vec3 grad;
+    grad.x = texture3D( scalar_tex, p + x_inch ).a - f;
+    grad.y = texture3D( scalar_tex, p + y_inch ).a - f;
+    grad.z = texture3D( scalar_tex, p + z_inch ).a - f;
+    return grad;
 }
 
 
@@ -236,22 +247,37 @@ void main ()
   vec3 box_bounds = vec3 (x_size.x,y_size.x,z_size.x);
 
   float f0 = texture3D(scalar_tex,p).a;
+  f0 = clamp(f0,0.0,255.0/256.0);
+  vec3 g0 = gradient(p,f0);
+
   for ( int i=0; i<256; ++i ) {
     p += view_vec;
     float f1 = texture3D(scalar_tex,p).a;
-    vec4 g = texture2D(global_tf_tex,vec2(f1,0.0));
+    f1 = clamp(f1,0.0,255.0/256.0);
+    vec3 g1 = gradient(p,f1);
+    
+    vec4 glob = texture2D(global_tf_tex,vec2(f1,0.0));
+
+    vec4 g = (f0 - isoval) * (f1 - isoval) > 0 ? vec4(0,0,0,0) : vec4(1,1,1,0.2);
+    float t = abs(f0-isoval) / (abs(f1-isoval)+abs(f0-isoval));
+    
+    vec3 nrml = normalize( (1.0-t)*g0 + t*g1 ) ;
+    
+    g.rgb *= abs(dot(light_vec,nrml));
+
     vec2 br = get_branch( p, f1 );
     vec4 c = sample_branch_tf(br,f1);
+    c.a *= glob.a; 
+    c = c+g;
+    c = clamp(c,0.0,1.0);
 
-    c.rgb *= abs(dot(light_vec,normal(p,f1)));
-    c.a *= g.a;
 
-    //if (all(br==vec2(0,0))) c.a = 0;
     
     float a = (1.0-color.a)*c.a;
     color.rgb += a*c.rgb;
     color.a += a;
     f0 = f1;
+    g0 = g1;
 
     if (any (lessThan( p, vec3(0.0,0.0,0.0))) ||
         any (greaterThan(p, vec3(1.0,1.0,1.0)))) break;

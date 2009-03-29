@@ -2,6 +2,8 @@
 #define MAINWINDOW_HPP_INCLUDED
 
 #include <QMainWindow>
+#include <QSlider>
+#include <QSpinBox>
 
 #include "ContourTree.hpp"
 #include "ContourTreeVolumeRenderer.hpp"
@@ -19,6 +21,8 @@ class MainWindow : public QMainWindow
   VolumeRendererWidget *vr;
   ColorMapEditor *cme;
   TreeWidget *tw;
+  QSlider *isoval;
+  QSpinBox *smooth_amt;
 
   public:
     MainWindow( ContourTree *ct, ContourTreeVolumeRenderer *ctvr,
@@ -26,7 +30,8 @@ class MainWindow : public QMainWindow
 
   public Q_SLOTS:
     void tf_edited( RGBA8* ); 
-    void lod_changed(int);
+    void smooth_amt_changed();
+    void isoval_changed();
 };
 
 

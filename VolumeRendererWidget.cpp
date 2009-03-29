@@ -251,6 +251,8 @@ void VolumeRendererWidget::mouseMoveEvent( QMouseEvent *event )
       y1 = (event_y   /h)*2-1 ;
     glMatrixMode(GL_MODELVIEW);
 
+    if (x0==x1 && y0==y1) return;
+
     const uint32_t *size = ctvr->vol_size;
 
     pair< Vec3d, double> ang_ax = trackball( vec2(x0,y0) , vec2(x1,y1) );

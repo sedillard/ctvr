@@ -9,6 +9,8 @@
 #include <QSplitter>
 #include <QToolBar>
 #include <QSpinBox>
+#include <QSlider>
+#include <QVBoxLayout>
 
 #include "ColorMapEditor.hpp"
 
@@ -84,7 +86,18 @@ MainWindow::MainWindow
   setCentralWidget(split);
   
   vr = new VolumeRendererWidget(ctvr,split);
-  cme = new ColorMapEditor(split);
+
+  QWidget *controls = new QWidget(split);
+  QVBoxLayout *controls_layout = new QVBoxLayout;
+  controls->setLayout(controls_layout);
+  
+  cme = new ColorMapEditor(controls);
+  isoval = new QSlider(Qt::Horizontal);
+  isoval->setRange(-1,256);
+
+  controls_layout->addWidget(cme);
+  controls_layout->addWidget(isoval);
+
   //tw = new TreeWidget(ctvr);
   //tw->show();
 
@@ -93,13 +106,14 @@ MainWindow::MainWindow
 
   QToolBar *toolbar = addToolBar(tr("Stuff"));
 
-  QSpinBox *lod = new QSpinBox;
-  toolbar->addWidget(lod);
-  lod->setRange(0,4000000);
-  lod->setValue(0);
+  smooth_amt = new QSpinBox;
+  toolbar->addWidget(smooth_amt);
+  smooth_amt->setRange(0,4000000);
+  smooth_amt->setValue(0);
   
-  connect( lod, SIGNAL(valueChanged(int)), this, SLOT(lod_changed(int)) );
+  connect( smooth_amt, SIGNAL(editingFinished()), this, SLOT(smooth_amt_changed()) );
   connect( cme, SIGNAL(edited(RGBA8*)), this, SLOT(tf_edited(RGBA8*)) );
+  connect( isoval, SIGNAL(sliderReleased()), this, SLOT(isoval_changed()));
   
 }
 
@@ -111,12 +125,20 @@ void MainWindow::tf_edited( RGBA8 *colors )
   vr->update(); 
 }
 
-void MainWindow::lod_changed(int t)
+void MainWindow::smooth_amt_changed()
 {
+  int t = smooth_amt->value();
   ctvr->do_merge_events(t); 
   ctvr->cluster_tf();
   vr->makeCurrent();
   ctvr->update_tf_tex();
   vr->update();
   //tw->update();
+}
+
+void MainWindow::isoval_changed()
+{
+  cout << "isovalue = " << this->isoval->value() << endl;
+  ctvr->isoval = this->isoval->value() / 255.0;
+  vr->update();
 }

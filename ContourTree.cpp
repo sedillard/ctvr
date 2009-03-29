@@ -152,8 +152,20 @@ void ContourTree::build ()
   //get list of nodes
   get_nodes(n,back_inserter(nodes));
 
+  int max_up=0,max_down=0,max_degree=0;
+
   //mark node ids
-  for ( uint32_t i=0; i<nodes.size(); ++i ) nodes[i]->id = i;
+  for ( uint32_t i=0; i<nodes.size(); ++i ) {
+    int ud = nodes[i]->up_degree();
+    int dd = nodes[i]->down_degree();
+    max_up = max(max_up,ud);
+    max_down = max(max_down,dd);
+    max_degree = max(max_degree,ud+dd);
+    nodes[i]->id = i;
+  }
+
+  cout << "max up degree is " << max_up << ", max down degree is " << max_down 
+       << "max total degree is " << max_degree << endl;
 
   //mark arc ids
   uint32_t narcs=0;

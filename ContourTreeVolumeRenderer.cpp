@@ -1153,6 +1153,7 @@ void ContourTreeVolumeRenderer::cluster_tf()
     hls_to_rgb(hi_hue,0.5,1,hi_color.r,hi_color.g,hi_color.b);
     hls_to_rgb(lo_hue,0.5,1,lo_color.r,lo_color.g,lo_color.b);
 
+    #if 1
     if ( hi_id == uint32_t(-1) ) {
       if ( lo_id == uint32_t(-1) ) {
         hi_color = lo_color = (RGBAf){0,0,0,0};  
@@ -1171,6 +1172,34 @@ void ContourTreeVolumeRenderer::cluster_tf()
         lo_color.a = 1;
       }
     }
+    #endif
+    #if 0
+    if ( hi_id == uint32_t(-1) ) {
+      if ( lo_id == uint32_t(-1) ) {
+        //hi_color = lo_color = (RGBAf){0,0,0,0};  
+        int i= int(tl.value(a->lo->vertex));
+        for ( RGBA8* c = tf_tex+bounds.first; c!=tf_tex+bounds.second; ++c,++i ) {
+            //float t = i/len;
+            *c = global_tf_tex[ i ];
+        }
+        continue;
+      } else {
+        hi_color = lo_color;
+        hi_color.a = 0;
+        lo_color.a = 0;
+      }
+    } else {
+      if ( lo_id == uint32_t(-1) ) {
+        lo_color = hi_color;
+        hi_color.a = 0;
+        lo_color.a = 0;
+      } else {
+        hi_color.a = 0;
+        lo_color.a = 0;
+      }
+    }
+    #endif
+
              
     float len = bounds.second-bounds.first;
     int i=0;
@@ -1330,7 +1359,6 @@ void ContourTreeVolumeRenderer::sw_render
       bGrad[0] = sample_gradient(tracer.verts,0,&pBack[0]);
       bGrad[1] = sample_gradient(tracer.verts,1,&pBack[0]);
       bGrad[2] = sample_gradient(tracer.verts,2,&pBack[0]);
-
 
        // Composite
       if ( fabs(fFront-fBack) < 1 ) { 

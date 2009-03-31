@@ -84,17 +84,18 @@ VolumeRendererWidget::paintGL()
     glVertex3dv(tl);
   glEnd();
 
-  glBegin(GL_LINES);
-    glColor3f(1.0,0,0);
-    glVertex3d(      0,  0,  0);
-    glVertex3d(size[0],  0,  0);
-    glColor3f(0,1.0,0);
-    glVertex3d(  0,        0,  0);
-    glVertex3d(  0,  size[1],  0);
-    glColor3f(0,0,1.0);
-    glVertex3d(  0,  0,      0);
-    glVertex3d(  0,  0, size[2]);
-  glEnd();
+    //axes
+  // glBegin(GL_LINES);
+  //   glColor3f(1.0,0,0);
+  //   glVertex3d(      0,  0,  0);
+  //   glVertex3d(size[0],  0,  0);
+  //   glColor3f(0,1.0,0);
+  //   glVertex3d(  0,        0,  0);
+  //   glVertex3d(  0,  size[1],  0);
+  //   glColor3f(0,0,1.0);
+  //   glVertex3d(  0,  0,      0);
+  //   glVertex3d(  0,  0, size[2]);
+  // glEnd();
   
   if ( sw_rendering == 0 ) {
     glPushAttrib(GL_ALL_ATTRIB_BITS);

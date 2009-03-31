@@ -120,30 +120,29 @@ ColorMapEditor::paintGL ()
   
   glColor4f(0,0,0,0.5);
   
-  for(size_t i = 0; i < resolution; i += scale_delta) {
-      glBegin(GL_LINES);
-      glVertex2f( i/(float)resolution , 0);
-      glVertex2f( i/(float)resolution , 1);
-      glEnd();
-  }
+  //for(size_t i = 0; i < resolution; i += scale_delta) {
+  //    glBegin(GL_LINES);
+  //    glVertex2f( i/(float)resolution , 0);
+  //    glVertex2f( i/(float)resolution , 1);
+  //    glEnd();
+  //}
   
-  glEnable(GL_LINE_SMOOTH);
+  //glEnable(GL_LINE_SMOOTH);
 
   //draw function
-  double res = resolution;
-  glEnable(GL_TEXTURE_1D);
-  glBindTexture(GL_TEXTURE_1D,color_tex);
-  glBegin(GL_QUADS);
-      glTexCoord1d( 0.5 / (res-1.0)  );
-      glVertex2d  ( 0, 0 );
-      glVertex2d  ( 0, 1 );
-      
-      glTexCoord1d( 0.5 / (res-1.0) + (res-1.0)/res );
-      glVertex2d  ( 1, 1 );
-      glVertex2d  ( 1, 0 );
-  glEnd();
-  
-  glDisable(GL_TEXTURE_1D);
+  //double res = resolution;
+  //glEnable(GL_TEXTURE_1D);
+  //glBindTexture(GL_TEXTURE_1D,color_tex);
+  //glBegin(GL_QUADS);
+  //    glTexCoord1d( 0.5 / (res-1.0)  );
+  //    glVertex2d  ( 0, 0 );
+  //    glVertex2d  ( 0, 1 );
+  //    
+  //    glTexCoord1d( 0.5 / (res-1.0) + (res-1.0)/res );
+  //    glVertex2d  ( 1, 1 );
+  //    glVertex2d  ( 1, 0 );
+  //glEnd();
+  //glDisable(GL_TEXTURE_1D);
 
   
   glColor3f(0,0,0);
@@ -165,9 +164,10 @@ void
 ColorMapEditor::draw_channel (Channel chan) 
 {
     float *x = ((float*)hlsa) + chan;
-    glBegin(GL_LINE_STRIP);
+    glBegin(GL_QUAD_STRIP);
     for (uint32_t i = 0; i < resolution; ++i, x+=4) {
         glVertex2f( i / (float)resolution, *x );
+        glVertex2f( i / (float)resolution, 0 );
     }
     glEnd();
 }

@@ -14,7 +14,7 @@ struct HLSAf{ float h,l,s,a; };
 #define MIN3(a,b,c) (((a)<(c))?(((a)<(b))?(a):(b)):(((b)<(c))?(b):(c)))
 
 inline
-float hls_value(float n1, float n2, float hue) 
+float hls_value(float n1, float n2, float hue)
 {
   if (hue >= 360.0)
     hue -= 360.0;
@@ -29,7 +29,7 @@ float hls_value(float n1, float n2, float hue)
     return n1+(n2-n1)*(240.0-hue)/60.0;
   else
     return n1;
-} 
+}
 
 inline
 void hls_to_rgb(float h, float l, float s, float &r, float &g, float &b) {
@@ -48,24 +48,24 @@ void hls_to_rgb(float h, float l, float s, float &r, float &g, float &b) {
     g = hls_value(m1, m2, h);
     b = hls_value(m1, m2, h-120.0f);
   }
-} 
+}
 
 
-inline 
+inline
 void rgb_to_hls(float r, float g, float b, float &h, float &l, float &s) {
-/* Given: r, b, g each in [0.1] 
+/* Given: r, b, g each in [0.1]
  * Desired: h in [0,360), l and s in [0,1]
  */
- 
+
   float max = MAX3(r,g,b);
   float min = MIN3(r,g,b);
-  l = (max+min)/2.0f;		/* This is lightness */
+  l = (max+min)/2.0f;   /* This is lightness */
   /* Next calculate saturation */
-  if (max == min) {		/* Achromatic, because r = g = b */
+  if (max == min) {   /* Achromatic, because r = g = b */
     s = 0.0f;
-    h = 0.0f; 			/* Actually: UNDEFINED */
+    h = 0.0f;       /* Actually: UNDEFINED */
   }
-  else  {			/* Chromatic case */
+  else  {     /* Chromatic case */
     float delta = max-min;
 
     /* First calculate saturation */

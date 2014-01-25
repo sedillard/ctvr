@@ -15,6 +15,7 @@
 #include "ContourTree.hpp"
 #include "ContourTreeVolumeRenderer.hpp"
 #include "HexMeshRayTracer.hpp"
+#include "Geom/Geom.hpp"
 
 #include <boost/foreach.hpp>
 
@@ -26,7 +27,7 @@ using namespace Tourtre;
 using namespace Geom;
 #define foreach BOOST_FOREACH
 
-static 
+static
 void
 wrap_tex_size ( GLuint size, GLuint tf_res, GLuint & nrows, GLuint & ncols )
 {
@@ -40,8 +41,8 @@ wrap_tex_size ( GLuint size, GLuint tf_res, GLuint & nrows, GLuint & ncols )
     if (nrows < 2) nrows = 2;
 }
 
-static 
-void* 
+static
+void*
 malloc0 ( uint32_t s )
 {
     void* p = malloc(s);
@@ -51,7 +52,7 @@ malloc0 ( uint32_t s )
 
 
 //create a rainbow transfer function in c
-static 
+static
 void rainbow_colors( RGBA8 *c, uint32_t n )
 {
     float r,g,b,t,h;
@@ -70,14 +71,14 @@ void rainbow_colors( RGBA8 *c, uint32_t n )
 
 
 
-ContourTreeVolumeRenderer::ContourTreeVolumeRenderer 
+ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
 (
-  ContourTree & ct_, 
-  uint8_t *voxels_, 
-  uint32_t ncols, 
-  uint32_t nrows, 
-  uint32_t nstacks 
-) : 
+  ContourTree & ct_,
+  uint8_t *voxels_,
+  uint32_t ncols,
+  uint32_t nrows,
+  uint32_t nstacks
+) :
   ct(ct_),
   tl(ct_.tl),
   nvoxels(ncols*nrows*nstacks),
@@ -90,20 +91,18 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   assert(nrows   == tl.size[1]);
   assert(nstacks == tl.size[2]);
 
-  gradients = 0;
-
   //compute branch decomposition properties
   compute_branch_properties();
   compute_branch_map();
-  compute_max_shader_itrs(); 
+  compute_max_shader_itrs();
 
   tf_res = 256;
-  tf_size = 256; 
+  tf_size = 256;
 
   //create the global transfer function
   global_tf_tex = (RGBA8*)malloc0( sizeof(RGBA8)*tf_res );;
   rainbow_colors( global_tf_tex, tf_res );
-  
+
   uint32_t nbranches = ct.branches.size();
   branch_tf_offset.resize( nbranches );
   fill(branch_tf_offset.begin(),branch_tf_offset.end(),-1);
@@ -129,39 +128,36 @@ ContourTreeVolumeRenderer::ContourTreeVolumeRenderer
   tf_tex = (RGBA8*)malloc( sizeof(RGBA8)*tf_tex_nrows*tf_tex_ncols );
   //init to black to see errors
   for ( uint32_t i=0; i<tf_tex_nrows*tf_tex_ncols; ++i ) {
-    tf_tex[i] = (RGBA8){0,0,0,0}; 
+    tf_tex[i] = (RGBA8){0,0,0,255};
   }
-  
-  init_branch_textures();
-  //default_tf();
-  
-  isoval = 0.5;
 
+  init_branch_textures();
+  default_tf();
 }
 
 
 
 GLushort ContourTreeVolumeRenderer::br_tex_x( uint32_t b )
 {
-    return ( b % br_tex_ncols ) * 
+    return ( b % br_tex_ncols ) *
             (0x10000/br_tex_ncols);// + (0x8000/br_tex_ncols) ;
 }
 
 GLushort ContourTreeVolumeRenderer::br_tex_y( uint32_t b )
 {
-    return ( b / br_tex_ncols ) * 
+    return ( b / br_tex_ncols ) *
             (0x10000/br_tex_nrows);// + (0x8000/br_tex_nrows) ;
 }
 
 GLushort ContourTreeVolumeRenderer::tf_tex_x( uint32_t offset )
 {
-    return ( offset % tf_tex_ncols ) * 
+    return ( offset % tf_tex_ncols ) *
             (0x10000/tf_tex_ncols) + (0x8000/tf_tex_ncols) ;
 }
 
 GLushort ContourTreeVolumeRenderer::tf_tex_y( uint32_t offset )
 {
-    return ( offset / tf_tex_ncols ) * 
+    return ( offset / tf_tex_ncols ) *
             (0x10000L/tf_tex_nrows) + (0x8000/tf_tex_nrows) ;
 }
 
@@ -178,10 +174,10 @@ ContourTreeVolumeRenderer::init_branch_textures()
 
   branch_map_tex = (GLushort*)malloc0( 2*sizeof(GLushort)*nvoxels );
   // set branch_map_tex values, splitting into 1D index into 2D tex coords.
-  {   
+  {
     GLushort *p = branch_map_tex;
 
-    for (uint32_t i=0; i<nvoxels; ++i, p+=2) { 
+    for (uint32_t i=0; i<nvoxels; ++i, p+=2) {
         assert(branch_map[i] != uint32_t(-1));
         p[0] = br_tex_x(branch_map[i]);
         p[1] = br_tex_y(branch_map[i]);
@@ -193,9 +189,9 @@ ContourTreeVolumeRenderer::init_branch_textures()
   uint32_t nbranches = ct.branches.size();
   for ( uint32_t b=0; b<nbranches; ++b ) {
     uint32_t id0 = 2*b, id1 = id0+1;
-    
+
     if (b == 0) { //root
-        parent_tex[id0] = parent_tex[id1] = 0; 
+        parent_tex[id0] = parent_tex[id1] = 0;
     } else {
         parent_tex[id0] = br_tex_x(branch_parent[b]);
         parent_tex[id1] = br_tex_y(branch_parent[b]);
@@ -217,7 +213,7 @@ ContourTreeVolumeRenderer::init_branch_textures()
 
 
 
-pair<uint32_t,uint32_t> 
+pair<uint32_t,uint32_t>
 ContourTreeVolumeRenderer::branch_tf_bounds( uint32_t b )
 {
   pair<uint32_t,uint32_t> out;
@@ -244,15 +240,15 @@ ContourTreeVolumeRenderer::compile_shader()
     program_id = glCreateProgram();
 
     //pass this info into the shader as a #define
-    stringstream shader_defines; 
-    shader_defines << "#define MAX_ITRS " << max_shader_itrs << endl  
+    stringstream shader_defines;
+    shader_defines << "#define MAX_ITRS " << max_shader_itrs << endl
                   << "#define TF_RES " << tf_res << endl;
-    
+
     string src_string = shader_defines.str() + fshader_src;
     //load shader src
     const char *src[] = {src_string.c_str()};
     const int len[] = {src_string.size()};
-    
+
     glShaderSource( fshader_id,1,src,len );
 
     //compile
@@ -262,8 +258,8 @@ ContourTreeVolumeRenderer::compile_shader()
     GLint status;
     glGetShaderiv(fshader_id, GL_COMPILE_STATUS, &status);
     if (status == GL_FALSE) {
-        //report error     
-        int len; 
+        //report error
+        int len;
         glGetShaderiv(fshader_id,GL_INFO_LOG_LENGTH,&len);
         char *err = (char*)malloc(len);
         glGetShaderInfoLog(fshader_id,len,0,err);
@@ -277,8 +273,8 @@ ContourTreeVolumeRenderer::compile_shader()
     glLinkProgram(program_id);
     glGetProgramiv(program_id,GL_LINK_STATUS,&status);
     if (status == GL_FALSE) {
-        //report error     
-        int len; 
+        //report error
+        int len;
         glGetProgramiv(fshader_id,GL_INFO_LOG_LENGTH,&len);
         char *err = (char*)malloc(len);
         glGetProgramInfoLog(fshader_id,len,0,err);
@@ -286,7 +282,7 @@ ContourTreeVolumeRenderer::compile_shader()
         free(err);
         return;
     }
-  
+
     //get uniform variable locations
 #define TV_GET_UL(X) X##_ul = glGetUniformLocation(program_id,#X)
 
@@ -308,14 +304,13 @@ ContourTreeVolumeRenderer::compile_shader()
     TV_GET_UL(z_inch);
     TV_GET_UL(light_vec);
     TV_GET_UL(view_vec);
-    TV_GET_UL(isoval);
 
 #undef TV_GET_UL
 
 }
 
 
-static 
+static
 void set_nn_tex_env()
 {
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_BASE_LEVEL,0);
@@ -327,7 +322,7 @@ void set_nn_tex_env()
     glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_REPLACE);
 }
 
-static 
+static
 void set_linear_tex_env()
 {
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_BASE_LEVEL,0);
@@ -362,18 +357,18 @@ ContourTreeVolumeRenderer::load_textures()
     set_pixel_store( tf_tex_ncols );
 
     glTexImage2D(
-        GL_TEXTURE_2D, 0, GL_RGBA8, 
-        tf_tex_ncols, tf_tex_nrows, 0, 
+        GL_TEXTURE_2D, 0, GL_RGBA8,
+        tf_tex_ncols, tf_tex_nrows, 0,
         GL_RGBA, GL_UNSIGNED_BYTE, tf_tex );
-    
-    
+
+
     glGenTextures(1,&global_tf_tex_id);
     glBindTexture(GL_TEXTURE_2D,global_tf_tex_id);
     set_linear_tex_env();
     set_pixel_store( tf_res );
     glTexImage2D(
-        GL_TEXTURE_2D, 0, GL_RGBA8, 
-        tf_res, 1, 0, 
+        GL_TEXTURE_2D, 0, GL_RGBA8,
+        tf_res, 1, 0,
         GL_RGBA, GL_UNSIGNED_BYTE, global_tf_tex );
 
 
@@ -382,8 +377,8 @@ ContourTreeVolumeRenderer::load_textures()
     glBindTexture(GL_TEXTURE_2D,tf_index_tex_id);
     set_nn_tex_env();
     set_pixel_store( br_tex_ncols );
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE16_ALPHA16, 
-        br_tex_ncols, br_tex_nrows, 0, 
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE16_ALPHA16,
+        br_tex_ncols, br_tex_nrows, 0,
         GL_LUMINANCE_ALPHA, GL_UNSIGNED_SHORT, tf_index_tex );
 
     free(tf_index_tex);
@@ -394,20 +389,20 @@ ContourTreeVolumeRenderer::load_textures()
     glBindTexture(GL_TEXTURE_2D,parent_tex_id);
     set_nn_tex_env();
     set_pixel_store( br_tex_ncols );
-    glTexImage2D(   GL_TEXTURE_2D, 0, GL_LUMINANCE16_ALPHA16, 
-                    br_tex_ncols, br_tex_nrows, 0, 
+    glTexImage2D(   GL_TEXTURE_2D, 0, GL_LUMINANCE16_ALPHA16,
+                    br_tex_ncols, br_tex_nrows, 0,
                     GL_LUMINANCE_ALPHA, GL_UNSIGNED_SHORT, parent_tex );
 
     free(parent_tex);
     parent_tex=0;
-    
+
     //load depth tex
     glGenTextures(1,&depth_tex_id);
     glBindTexture(GL_TEXTURE_2D,depth_tex_id);
     set_nn_tex_env();
     set_pixel_store( br_tex_ncols );
     glTexImage2D(   GL_TEXTURE_2D, 0, GL_ALPHA8,
-                    br_tex_ncols, br_tex_nrows, 0, 
+                    br_tex_ncols, br_tex_nrows, 0,
                     GL_ALPHA, GL_UNSIGNED_BYTE, depth_tex );
 
     free(depth_tex);
@@ -419,7 +414,7 @@ ContourTreeVolumeRenderer::load_textures()
     set_nn_tex_env();
     set_pixel_store( br_tex_ncols );
     glTexImage2D( GL_TEXTURE_2D, 0, GL_ALPHA16,
-                    br_tex_ncols, br_tex_nrows, 0, 
+                    br_tex_ncols, br_tex_nrows, 0,
                     GL_ALPHA, GL_FLOAT, saddle_val_tex );
 
     free(saddle_val_tex);
@@ -439,7 +434,7 @@ ContourTreeVolumeRenderer::load_textures()
     glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_REPLACE);
 
 
-    glTexImage3D( GL_TEXTURE_3D, 0, GL_ALPHA8, 
+    glTexImage3D( GL_TEXTURE_3D, 0, GL_ALPHA8,
                   scalar_tex_size[0],
                   scalar_tex_size[1],
                   scalar_tex_size[2],
@@ -451,13 +446,13 @@ ContourTreeVolumeRenderer::load_textures()
     glPixelStorei(GL_UNPACK_SKIP_ROWS,0);
     glPixelStorei(GL_UNPACK_IMAGE_HEIGHT, vol_size[1] );
     glPixelStorei(GL_UNPACK_SKIP_IMAGES,0);
-   
+
     glTexSubImage3D( GL_TEXTURE_3D, 0, 0,0,0,
                     vol_size[0], vol_size[1], vol_size[2],
                     GL_ALPHA, GL_UNSIGNED_BYTE, voxels );
 
 
-    //load branch map texture 
+    //load branch map texture
     glGenTextures(1,&branch_map_tex_id);
     glBindTexture(GL_TEXTURE_3D,branch_map_tex_id);
 
@@ -470,7 +465,7 @@ ContourTreeVolumeRenderer::load_textures()
     glTexParameteri(GL_TEXTURE_3D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
     glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_REPLACE);
 
-    glTexImage3D( GL_TEXTURE_3D, 0, GL_LUMINANCE16_ALPHA16, 
+    glTexImage3D( GL_TEXTURE_3D, 0, GL_LUMINANCE16_ALPHA16,
                   scalar_tex_size[0],
                   scalar_tex_size[1],
                   scalar_tex_size[2],
@@ -482,12 +477,12 @@ ContourTreeVolumeRenderer::load_textures()
     glPixelStorei(GL_UNPACK_SKIP_ROWS,0);
     glPixelStorei(GL_UNPACK_IMAGE_HEIGHT, vol_size[1] );
     glPixelStorei(GL_UNPACK_SKIP_IMAGES,0);
-   
+
     glTexSubImage3D( GL_TEXTURE_3D, 0, 0,0,0,
                      vol_size[0], vol_size[1], vol_size[2],
-                     GL_LUMINANCE_ALPHA, GL_UNSIGNED_SHORT, 
+                     GL_LUMINANCE_ALPHA, GL_UNSIGNED_SHORT,
                      branch_map_tex );
-    
+
     free(branch_map_tex);
     branch_map_tex=0;
 }
@@ -502,8 +497,8 @@ ContourTreeVolumeRenderer::update_tf_tex()
   set_pixel_store( tf_tex_ncols );
 
   glTexImage2D(
-      GL_TEXTURE_2D, 0, GL_RGBA8, 
-      tf_tex_ncols, tf_tex_nrows, 0, 
+      GL_TEXTURE_2D, 0, GL_RGBA8,
+      tf_tex_ncols, tf_tex_nrows, 0,
       GL_RGBA, GL_UNSIGNED_BYTE, tf_tex );
 }
 
@@ -513,7 +508,7 @@ ContourTreeVolumeRenderer::default_tf()
 {
   //RGBA8 *colors = new RGBA8[tf_res];
   //rainbow_colors(colors,tf_res);
-  
+
   for ( uint32_t b=0; b<ct.branches.size(); ++b ) {
     pair<uint32_t,uint32_t> bnds = branch_tf_bounds(b);
     srand(b);
@@ -558,7 +553,7 @@ ContourTreeVolumeRenderer::enable_gl()
     glActiveTexture(GL_TEXTURE0+I); \
     glBindTexture(GL_TEXTURE_##N##D,X##_id); \
     glUniform1i(X##_ul,I); }
-   
+
     TV_SET_TEX( 0, 3, scalar_tex );
     TV_SET_TEX( 1, 3, branch_map_tex );
     TV_SET_TEX( 2, 2, tf_tex );
@@ -567,7 +562,7 @@ ContourTreeVolumeRenderer::enable_gl()
     TV_SET_TEX( 5, 2, depth_tex );
     TV_SET_TEX( 6, 2, saddle_val_tex );
     TV_SET_TEX( 7, 2, global_tf_tex );
-    
+
 #undef TV_SET_TEX
 
     glUniform4f( tf_tex_size_ul,
@@ -584,8 +579,6 @@ ContourTreeVolumeRenderer::enable_gl()
     glUniform3f( y_inch_ul, 0, 1.0 /tz[1], 0 );
     glUniform3f( z_inch_ul, 0, 0, 1.0 /tz[2] );
 
-    glUniform1f( isoval_ul, isoval );
-
     { //compute view vector to use as the light direction
         double f[3],b[3];
         GLint vp[4];
@@ -595,11 +588,11 @@ ContourTreeVolumeRenderer::enable_gl()
         glGetDoublev(GL_PROJECTION_MATRIX,proj);
         gluUnProject( vp[2]/2, vp[3]/2, 0, mv,proj,vp, f,f+1,f+2 );
         gluUnProject( vp[2]/2, vp[3]/2, 1, mv,proj,vp, b,b+1,b+2 );
-        light_vec = vec3(b[0]-f[0], b[1]-f[1], b[2]-f[2] );
-        light_vec.normalize();
-        glUniform3f( light_vec_ul, light_vec[0],light_vec[1],light_vec[2] );
+        double vx=b[0]-f[0], vy=b[1]-f[1], vz=b[2]-f[2];
+        double norm = sqrt(vx*vx+vy*vy+vz*vz);
+        glUniform3f( light_vec_ul, vx/norm, vy/norm, vz/norm );
     }
-    
+
     { //compute view vector for ray stepping
         double f[3],b[3];
         GLint vp[4];
@@ -615,14 +608,14 @@ ContourTreeVolumeRenderer::enable_gl()
         float v[3] =  { vx*ss/norm, vy*ss/norm, vz*ss/norm };
         glUniform3f( view_vec_ul, v[0],v[1],v[2] );
     }
-    
+
     //  Transform tex coords to go from this...
     //  |-*-|-*-|-*-|
     //  0...........tz
     //                     /tz
     //  0...........1
     //                    0.5
-    //    0...........1    
+    //    0...........1
     //                    *(tz-1)/tz
     //    0.......1
     //  |-*-|-*-|-*-|
@@ -631,7 +624,7 @@ ContourTreeVolumeRenderer::enable_gl()
     glActiveTexture(GL_TEXTURE0);
     glMatrixMode(GL_TEXTURE);
     glLoadIdentity();
-    
+
     glScaled( 1.0/tz[0], 1.0/tz[1], 1.0/tz[2] );
     glTranslated( 0.5, 0.5, 0.5 );
     glScaled( (sz[0]-1.0)/sz[0], (sz[1]-1.0)/sz[1], (sz[2]-1.0)/sz[2] );
@@ -639,22 +632,22 @@ ContourTreeVolumeRenderer::enable_gl()
 
 
 
-void 
-ContourTreeVolumeRenderer::set_global_tf( RGBA8 *colors ) 
+void
+ContourTreeVolumeRenderer::set_global_tf( RGBA8 *colors )
 {
   copy(colors,colors+tf_res,global_tf_tex);
 }
 
 
-void 
-ContourTreeVolumeRenderer::update_global_tf_tex() 
+void
+ContourTreeVolumeRenderer::update_global_tf_tex()
 {
   glBindTexture(GL_TEXTURE_2D,global_tf_tex_id);
   set_linear_tex_env();
   set_pixel_store( tf_res );
   glTexImage2D(
-      GL_TEXTURE_2D, 0, GL_RGBA8, 
-      tf_res, 1, 0, 
+      GL_TEXTURE_2D, 0, GL_RGBA8,
+      tf_res, 1, 0,
       GL_RGBA, GL_UNSIGNED_BYTE, global_tf_tex );
 }
 
@@ -685,14 +678,14 @@ ContourTreeVolumeRenderer::compute_branch_properties()
 
     branch_saddle_value[b] = tl.value(range.first->vertex);
 
-    float lo_val = tl.value(range.first->vertex) / 255.0f, 
+    float lo_val = tl.value(range.first->vertex) / 255.0f,
           hi_val = tl.value(range.second->vertex) / 255.0f;
     if ( lo_val > hi_val ) swap(lo_val,hi_val);
-    
+
     //propagate lo/hi values to parents
     for (uint32_t p=b; p!=uint32_t(-1); p=branch_parent[p]) {
-      branch_lo_val[p] = min(lo_val,branch_lo_val[p]); 
-      branch_hi_val[p] = max(hi_val,branch_hi_val[p]); 
+      branch_lo_val[p] = min(lo_val,branch_lo_val[p]);
+      branch_hi_val[p] = max(hi_val,branch_hi_val[p]);
     }
 
     children.clear();
@@ -714,6 +707,8 @@ ContourTreeVolumeRenderer::compute_branch_map()
   branch_map.resize( nvoxels, uint32_t(-1) );
   Trilinear<uint8_t> & tl = ct.tl;
 
+  set<uint32_t> mapped;
+
   #pragma omp parallel for
   for ( int i=0; i<int(nvoxels); ++i ) {
     uint32_t up_vert = tl.reachable_max[i];
@@ -726,7 +721,10 @@ ContourTreeVolumeRenderer::compute_branch_map()
     while( branch_lo_val[b] == branch_hi_val[b] ) b=branch_parent[b];
     assert(b != uint32_t(-1));
     branch_map[i] = b;
+    mapped.insert(b);
   }
+
+  cout << "mapped " << mapped.size() << " different branches" << endl;
 
   //free up some memory
   tl.reachable_max = tl.reachable_min = vector<uint32_t>();
@@ -761,7 +759,7 @@ ContourTreeVolumeRenderer::compute_max_shader_itrs()
     max_shader_itrs = 0;
     const uint32_t *size = vol_size;
     uint32_t im_skip = vol_size[0]*vol_size[1];
-    
+
     #pragma omp parallel for
     for (int z=0; z<(int)vol_size[2]-1; ++z) {
       uint32_t max_itrs = 0;
@@ -769,27 +767,27 @@ ContourTreeVolumeRenderer::compute_max_shader_itrs()
         uint32_t o = (z*vol_size[1]+y)*vol_size[0];
 
         //vertices of a cell
-        uint32_t v[8] = 
+        uint32_t v[8] =
           { o, o+1, o+size[0], o+1+size[0],
             o+im_skip, o+im_skip+1, o+im_skip+size[0],
             o+im_skip+size[0]+1 };
 
         uint32_t b[8]; //branches at vertices
         for (uint32_t x=0; x<size[0]-1; ++x) {
-            for (int i=0; i<8; ++i) b[i] = branch_map[v[i]]; 
-            for ( int i=0; i<7; ++i) 
+            for (int i=0; i<8; ++i) b[i] = branch_map[v[i]];
+            for ( int i=0; i<7; ++i)
             for ( int j=i+1; j<8; ++j ) {
                 uint32_t dist = branch_distance(b[i],b[j]);
                 max_itrs = dist > max_itrs ? dist : max_itrs;
             }
-            
+
             for (int i=0; i<8; ++i) ++v[i];
         }
       }
-      #pragma omp critical 
-      max_shader_itrs = max(max_shader_itrs,max_itrs); 
+      #pragma omp critical
+      max_shader_itrs = max(max_shader_itrs,max_itrs);
     }
-    
+
     if ( max_shader_itrs > 16 )  {
         cout << "NOTE: cutting off maximum shader iterations at 16. This"
                " may cause some artifacts\n" << endl;
@@ -803,12 +801,12 @@ RGBA8* ContourTreeVolumeRenderer::arc_tf_offset( ContourTree::Arc* a )
   uint32_t b = a->branch;
   assert(b<branch_lo_val.size());
   float lo = branch_lo_val[b];
-  
-  return reinterpret_cast<RGBA8*>(tf_tex) + 
+
+  return reinterpret_cast<RGBA8*>(tf_tex) +
            ( branch_tf_offset[b] - uint32_t(floor(lo*(tf_res-1))) );
 }
 
-pair<uint32_t,uint32_t> 
+pair<uint32_t,uint32_t>
 ContourTreeVolumeRenderer::arc_tf_bounds(ContourTree::Arc* arc)
 {
   uint32_t b = arc->branch;
@@ -818,25 +816,25 @@ ContourTreeVolumeRenderer::arc_tf_bounds(ContourTree::Arc* arc)
   float a_lo = floor( (tl.value(arc->lo->vertex)/255.0f)*(tf_res-1) );
   float a_hi = ceil ( (tl.value(arc->hi->vertex)/255.0f)*(tf_res-1) );
 
-  uint32_t o = branch_tf_offset[b] - uint32_t(floor(lo*(tf_res-1))) + 1;
-  return make_pair(o+uint32_t(a_lo), o+uint32_t(a_hi)+1);
+  uint32_t o = branch_tf_offset[b] - uint32_t(floor(lo*(tf_res-1)));;
+  return make_pair(o+uint32_t(a_lo), o+uint32_t(a_hi));
 }
 
 void ContourTreeVolumeRenderer::test_tf()
 {
   for ( uint32_t i=0; i<ct.nodes.size(); ++i ) {
-    ContourTree::Node* n = ct.nodes[i]; 
+    ContourTree::Node* n = ct.nodes[i];
     for ( ContourTree::Arc *a=n->up; a; a=a->next_up ) {
       pair<uint32_t,uint32_t> bounds = arc_tf_bounds(a);
 
       for ( RGBA8* c = tf_tex+bounds.first; c!=tf_tex+bounds.second; ++c ) {
         assert(c-tf_tex < ptrdiff_t(tf_size));
-        c->r = c->g = c->b = c->a = 0; 
+        c->r = c->g = c->b = c->a = 0;
       }
 
       if ( bounds.second - bounds.first > 10 ) {
         RGBA8 *c = tf_tex + (bounds.first+bounds.second)/2;
-        c->r = c->g = c->b = c->a = 128; 
+        c->r = c->g = c->b = c->a = 128;
       }
     }
   }
@@ -854,198 +852,67 @@ void ContourTreeVolumeRenderer::node_cluster_union( uint32_t a, uint32_t b )
 {
   a = node_cluster_find(a);
   b = node_cluster_find(b);
-  node_cluster[a] = b; 
+  node_cluster[a] = b;
 }
 
-
-struct compare_event_from {
-  bool operator()( const Event & a, const Event & b )
-  { return a.from < b.from; }
-};
-
-static inline
-bool compare_event_when( const Event & a, const Event & b )
-{ return a.when < b.when; }
-
-
-void ContourTreeVolumeRenderer::read_events_file( const char* filename )
+void ContourTreeVolumeRenderer::read_tracker_file( const char* filename )
 {
+  node_cluster.resize( ct.nodes.size() );
+  for ( size_t i=0; i<ct.nodes.size(); ++i )
+    node_cluster[i] = i;
 
   ifstream file(filename,ios::in);
   if (!file) {
-    cerr << "could not open events file " << filename << endl;
+    cerr << "could not open tracker file " << filename << endl;
     abort();
   }
-  int nevents=0;
-  typedef map<int,Event> EventSet;
-  EventSet event_set;
-  int from,to,when;
+  uint32_t from=0,to=0,when=0;
+  int nmerges=0;
   for (;;) {
-    ++nevents;
     file >> from >> to >> when;
     if (file.eof()) break;
-    ContourTree::Node 
-      *anode = ct.node_map[from], 
+    ContourTree::Node
+      *anode = ct.node_map[from],
       *bnode = ct.node_map[to];
     if (!anode) {
-      cerr << "events file references extremum at id " << from << " but I don't see one there" << endl; 
+      cerr << "tracker file references extremum at id " << from << " but I don't see one there" << endl;
       abort();
     }
     if (!bnode) {
-      cerr << "events file references extremum at id " << to << " but I don't see one there" << endl; 
+      cerr << "tracker file references extremum at id " << to << " but I don't see one there" << endl;
       abort();
     }
-    //if ( event_set.find(from) != event_set.end() ) {
-    //    cout << "duplicate event " << from << ", previous merged with " << 
-    //    event_set[from].to << ", this one merges with " << to << endl;
-    //}
-    event_set[from] = (Event){from,to,when};
-  }
-  events.clear();
-  foreach( EventSet::value_type & e, event_set ) events.push_back( e.second );
-  sort(events.begin(),events.end(),compare_event_when);
-
-  cout << "the events file had " << nevents << " events, " 
-       << event_set.size() << " of which had unique from fields" << endl;
-
-}
-
-void ContourTreeVolumeRenderer::do_merge_events( int until ) 
-{
-  node_cluster.resize( ct.nodes.size() );
-  for ( size_t i=0; i<ct.nodes.size(); ++i ) 
-    node_cluster[i] = i; 
-  
-  int nmerges=0;
-  foreach( Event & e, events ) {
-    if (e.when >= until ) break;
-    ContourTree::Node 
-      *anode = ct.node_map[e.from], 
-      *bnode = ct.node_map[e.to];
     uint32_t a=anode->id, b=bnode->id;
     if ( node_cluster_find(a) != node_cluster_find(b) ) {
       ++nmerges;
-      node_cluster_union(a,b); 
+      node_cluster_union(a,b);
     }
   }
-
-  foreach( Node *n, ct.nodes ) {
-    node_cluster[n->id] = node_cluster_find(n->id);
-  }
-
-  cout << "merged " << nmerges << " nodes (up to time " << until << ")" << endl;
+  cout << "out of ~" << (ct.nodes.size()-1)/2 << " leaves, merged "
+       << nmerges << endl;
 
   propagate_cluster_info();
 }
 
-
-void ContourTreeVolumeRenderer::propagate_cluster_info()
-{
-  deque<Node*> nodeq;
-
-  set<uint32_t> labels;
-  foreach( Node *n, ct.nodes ) {
-    if (n->is_max()) nodeq.push_back(n->down->lo);
-    else if (n->is_min()) nodeq.push_back(n->up->hi);
-    else node_cluster[n->id] = uint32_t(-1);
-
-    labels.insert(node_cluster[n->id]);
-  }
-  
-  cout << "there are " << labels.size() << " unique labels on " << nodeq.size() << " leaves " << endl;
-  
-  int nmarked=0;
-  while (!nodeq.empty()) {
-    Node *n = nodeq.front();
-    nodeq.pop_front();
-
-    
-    Node *lnode=0; //the neighbor whose node we will copy
-    int nunlabeled=0; // the number of unlabelled neighbors
-    Node *unlabeled=0; //the unlabeled neighbor
-    for( Arc *a=n->up; a; a=a->next_up ) {
-      if (node_cluster[a->hi->id] == uint32_t(-1)) 
-        ++nunlabeled, unlabeled=a->hi;
-      else 
-        lnode=a->hi;
-    }
-    for( Arc *a=n->down; a; a=a->next_down ) {
-      if (node_cluster[a->lo->id] == uint32_t(-1)) 
-        ++nunlabeled, unlabeled=a->lo;
-      else 
-        lnode=a->lo;
-    }
-
-    if (nunlabeled > 1 ) continue; //can't decide yet
-
-    bool disagreement=false;
-    for( Arc *a=n->up; a; a=a->next_up ) {
-      if ( node_cluster[a->hi->id] == uint32_t(-1) ) continue;
-      if (node_cluster[a->hi->id] != node_cluster[lnode->id] ) {
-        disagreement=true; 
-      }
-    }
-    for( Arc *a=n->down; a; a=a->next_down ) {
-      if ( node_cluster[a->lo->id] == uint32_t(-1) ) continue;
-      if (node_cluster[a->lo->id] != node_cluster[lnode->id] ) {
-        disagreement=true; 
-      }
-    }
-
-    if (disagreement) continue; //this node's label is not decided
-
-    //mark this node and push the unlabeled one
-    ++nmarked;
-    node_cluster[n->id] = node_cluster[lnode->id];  
-    if (unlabeled) nodeq.push_back(unlabeled);
-    
-  }
-
-  cout << "marked " << nmarked << " saddles " << endl;
-
-}
-
-/*
-        ....
-         \ /
-          d
-   a     /
-    \   b
-     \ / \
-      c   e 
-      |  / \ 
-      | f   g
-   --------- <- isovalue cut here
-      | 
-      |
-*/
-
-
-#if 0
 void ContourTreeVolumeRenderer::propagate_cluster_info()
 {
   vector<int16_t> valence(ct.nodes.size(),0);
   typedef pair<Arc*,Direction> Pair;
   deque<Pair> nodeq;
-  set<uint32_t> cluster_ids;
   foreach( Node *n, ct.nodes ) {
     if (n->is_max()) {
       nodeq.push_back(make_pair(n->down,Down));
-      cluster_ids.insert(node_cluster[n->id]);
     } else if (n->is_min()) {
       nodeq.push_back(make_pair(n->up,Up));
-      cluster_ids.insert(node_cluster[n->id]);
     } else {
       node_cluster[n->id] = uint32_t(-1);
       valence[n->id] = n->up_degree() + n->down_degree();
     }
   }
 
-  cout << nodeq.size() << " extrema have " << cluster_ids.size() << " unique ids" << endl;
-
   typedef pool_allocator< pair<uint32_t,int>, default_user_allocator_new_delete,
                          details::pool::null_mutex> alloc;
-  typedef map<uint32_t,int,less<uint32_t>,alloc > Map; 
+  typedef map<uint32_t,int,less<uint32_t>,alloc > Map;
           //cluster id,num votes
 
   while(!nodeq.empty()) {
@@ -1056,9 +923,9 @@ void ContourTreeVolumeRenderer::propagate_cluster_info()
     --valence[n->id];
     if ( valence[n->id]==1 && node_cluster[n->id]==uint32_t(-1) ) {
       Map votes;
-      for ( Arc *a=n->up; a; a=a->next_up ) 
+      for ( Arc *a=n->up; a; a=a->next_up )
         ++votes[node_cluster[a->hi->id]];
-      for ( Arc *a=n->down; a; a=a->next_down ) 
+      for ( Arc *a=n->down; a; a=a->next_down )
         ++votes[node_cluster[a->lo->id]];
 
       uint32_t best=-1;
@@ -1070,143 +937,45 @@ void ContourTreeVolumeRenderer::propagate_cluster_info()
       }
       node_cluster[n->id] = best;
 
-      for ( Arc *a=n->up; a; a=a->next_up ) 
-        if ( node_cluster[a->hi->id]==uint32_t(-1) ) 
+      for ( Arc *a=n->up; a; a=a->next_up )
+        if ( node_cluster[a->hi->id]==uint32_t(-1) )
           nodeq.push_back(make_pair(a,Up));
-      for ( Arc *a=n->down; a; a=a->next_down ) 
-        if ( node_cluster[a->lo->id]==uint32_t(-1) ) 
+      for ( Arc *a=n->down; a; a=a->next_down )
+        if ( node_cluster[a->lo->id]==uint32_t(-1) )
           nodeq.push_back(make_pair(a,Down));
     }
   }
 
+
   foreach( uint32_t id, node_cluster ) assert(id!=uint32_t(-1));
-}
-#endif
-
-
-
-double lerp( const double & a, const double & b, const double & t )
-{ return (1-t)*double(a) + t*double(b) ; }
-
-float lerp( const float & a, const float & b, const float & t )
-{ return (1-t)*float(a) + t*float(b) ; }
-
-RGBAf lerp( const RGBAf & a, const RGBAf & b, float t )
-{ 
-  float s = 1-t;
-  return (RGBAf){ s*a.r+t*b.r,
-                  s*a.g+t*b.g,
-                  s*a.b+t*b.b,
-                  s*a.a+t*b.a } ;
-}
-
-static 
-void maybe_normalize( Vec3d & v )
-{
-  double n = sqr_norm(v);
-  if (n!=0) v/=n;
-}
-
-
-static inline
-RGBAf blend_over( const RGBAf & f, const RGBAf & b ) 
-{
-  float a = (1.0f-f.a)*b.a;
-  return (RGBAf) { f.r + a * b.r,
-                   f.g + a * b.g,
-                   f.b + a * b.b,
-                   f.a + a
-                 };
-}
-
-static inline
-RGBAf toRGBAf( const RGBA8 & c ) 
-{ return (RGBAf){c.r/255.0f,c.g/255.0f,c.b/255.0f,c.a/255.0f}; }
-
-static inline
-RGBA8 toRGBA8( const RGBAf & c ) 
-{ return (RGBA8){uint8_t(c.r*255),
-                 uint8_t(c.g*255),
-                 uint8_t(c.b*255),
-                 uint8_t(c.a*255)}; 
 }
 
 
 void ContourTreeVolumeRenderer::cluster_tf()
 {
   cout << "setting automatic transfer function based on cluster" << endl;
-  
-  #pragma omp parallel for
-  for ( int itr=0; itr<int(ct.arcs.size()); ++itr ) {
-    Arc *a = ct.arcs[itr];
+  foreach( Arc* a, ct.arcs ) {
     pair<uint32_t,uint32_t> bounds = arc_tf_bounds(a);
 
-    uint32_t hi_id = node_cluster[a->hi->id],
-             lo_id = node_cluster[a->lo->id];
-
-    srand(hi_id);
-    double hi_hue = 360* (rand()/double(RAND_MAX));
-    srand(lo_id);
-    double lo_hue = 360* (rand()/double(RAND_MAX));
-
-    RGBAf hi_color,lo_color;
-    hls_to_rgb(hi_hue,0.5,1,hi_color.r,hi_color.g,hi_color.b);
-    hls_to_rgb(lo_hue,0.5,1,lo_color.r,lo_color.g,lo_color.b);
-
-    #if 1
-    if ( hi_id == uint32_t(-1) ) {
-      if ( lo_id == uint32_t(-1) ) {
-        hi_color = lo_color = (RGBAf){0,0,0,0};  
-      } else {
-        hi_color = lo_color;
-        hi_color.a = 0;
-        lo_color.a = 1;
+    if ( node_cluster[a->hi->id] == node_cluster[a->lo->id] ) {
+      srand(node_cluster[a->hi->id]);
+      double hue = 360* rand()/double(RAND_MAX);
+      float r,g,b;
+      hls_to_rgb(hue,0.5,1,r,g,b);
+      for ( RGBA8* c = tf_tex+bounds.first; c!=tf_tex+bounds.second; ++c ) {
+        assert(c-tf_tex < ptrdiff_t(tf_size));
+        c->r = uint8_t(255.0*r);
+        c->g = uint8_t(255.0*g);
+        c->b = uint8_t(255.0*b);
+        c->a = 128;
       }
     } else {
-      if ( lo_id == uint32_t(-1) ) {
-        lo_color = hi_color;
-        hi_color.a = 1;
-        lo_color.a = 0;
-      } else {
-        hi_color.a = 1;
-        lo_color.a = 1;
+      for ( RGBA8* c = tf_tex+bounds.first; c!=tf_tex+bounds.second; ++c ) {
+        assert(c-tf_tex < ptrdiff_t(tf_size));
+        c->r = c->g = 255;
+        c->b = 0;
+        c->a = 40;
       }
-    }
-    #endif
-    #if 0
-    if ( hi_id == uint32_t(-1) ) {
-      if ( lo_id == uint32_t(-1) ) {
-        //hi_color = lo_color = (RGBAf){0,0,0,0};  
-        int i= int(tl.value(a->lo->vertex));
-        for ( RGBA8* c = tf_tex+bounds.first; c!=tf_tex+bounds.second; ++c,++i ) {
-            //float t = i/len;
-            *c = global_tf_tex[ i ];
-        }
-        continue;
-      } else {
-        hi_color = lo_color;
-        hi_color.a = 0;
-        lo_color.a = 0;
-      }
-    } else {
-      if ( lo_id == uint32_t(-1) ) {
-        lo_color = hi_color;
-        hi_color.a = 0;
-        lo_color.a = 0;
-      } else {
-        hi_color.a = 0;
-        lo_color.a = 0;
-      }
-    }
-    #endif
-
-             
-    float len = bounds.second-bounds.first;
-    int i=0;
-    for ( RGBA8* c = tf_tex+bounds.first; c!=tf_tex+bounds.second; ++c,++i ) {
-      assert(c-tf_tex < ptrdiff_t(tf_size));
-      float t = i/len;
-      *c = toRGBA8(lerp(lo_color,hi_color,t));
     }
   }
 }
@@ -1214,22 +983,9 @@ void ContourTreeVolumeRenderer::cluster_tf()
 
 
 
-
-
-static inline
-RGBAf sample_tf( const RGBA8 *tf, float f )
-{
-  int f0 = int(floor(f));
-  int f1 = f0+1;
-  f -= f0;
-  RGBAf c0 = toRGBAf(tf[f0]);
-  RGBAf c1 = toRGBAf(tf[f1]);
-  c0.r = (1-f)*c0.r + f*c1.r;
-  c0.g = (1-f)*c0.g + f*c1.g;
-  c0.b = (1-f)*c0.b + f*c1.b;
-  c0.a = (1-f)*c0.a + f*c1.a;
-  return c0;
-}
+template <typename T> inline
+double lerp( const T & a, const T & b, const double & t )
+{ return (1-t)*double(a) + t*double(b) ; }
 
 void ContourTreeVolumeRenderer::sw_render
 ( RGBA8 *image,
@@ -1239,7 +995,6 @@ void ContourTreeVolumeRenderer::sw_render
   int win_bottom
 )
 {
-  if (!gradients) compute_gradients();
 
   GLdouble mv[16],proj[16];
   GLint vp[4];
@@ -1248,7 +1003,6 @@ void ContourTreeVolumeRenderer::sw_render
   glGetIntegerv(GL_VIEWPORT,vp);
 
   //#pragma omp parallel for
-  #if 1
   for (int j = 0; j < int(num_rows); j++)
   for (uint32_t i = 0; i < img_width; i++) {
 
@@ -1257,202 +1011,123 @@ void ContourTreeVolumeRenderer::sw_render
     gluUnProject(i+win_left,j+win_bottom,1,mv,proj,vp,&bp[0],&bp[1],&bp[2]);
 
     RGBAf result = {0,0,0,0};
-    
+
     Vec3d org = fp;
     Vec3d dir = normalize(bp-fp);
 
     int nsteps=0;
-    for( HexMeshRayTracer<uint8_t> tracer(voxels,vol_size,&org[0],&dir[0]); 
-          tracer; ++tracer ) 
+    for( HexMeshRayTracer<uint8_t> tracer(voxels,vol_size,&org[0],&dir[0]);
+          tracer; ++tracer )
     {
       ++nsteps;
+      double fFront, fBack;
+      Vec3d pFront, pBack;
+      double xfrac, yfrac, zfrac;
 
-      //get points at front and back of ray segmen
-      Vec3d pFront = org + tracer.tFront()*dir,
-            pBack = org + tracer.tBack()*dir;
-      
-      //put points in cell-local coordinates
-      for (int d=0; d<3; ++d) {
-        pFront[d] -= floor(pFront[d]);
-        pBack[d] -= floor(pBack[d]);
-      }
+      double tlFront[7], tlBack[7]; //trilinear interpolation tree
+      double * tlMin, * tlMax;
 
-      //do trilinear interpolation
-      double tlFront[7], tlBack[7]; 
-        //these store the intermediate values of trilinear interpolation
-        //which we use for finding a monotone path from the sample points
-        //to cell vertices
+      uint maxVert = 0, minVert = 0;
+      uint maxTrace = 0, minTrace = 0;
 
-      tlFront[3] = lerp( tracer.F[0], tracer.F[1], pFront[0]);
-      tlFront[4] = lerp( tracer.F[2], tracer.F[3], pFront[0]);
-      tlFront[5] = lerp( tracer.F[4], tracer.F[5], pFront[0]);
-      tlFront[6] = lerp( tracer.F[6], tracer.F[7], pFront[0]);
-      tlFront[1] = lerp( tlFront[3] , tlFront[4] , pFront[1]);
-      tlFront[2] = lerp( tlFront[5] , tlFront[6] , pFront[1]);
-      tlFront[0] = lerp( tlFront[1] , tlFront[2] , pFront[2]);
-      double fFront = tlFront[0]; //value at the front point
+      ///////////////////////
+      //////compute front value
+      ///////////////////////
+      pFront = org + tracer.tFront()*dir;
 
-      tlBack[3] = lerp( tracer.F[0], tracer.F[1], pBack[0]);
-      tlBack[4] = lerp( tracer.F[2], tracer.F[3], pBack[0]);
-      tlBack[5] = lerp( tracer.F[4], tracer.F[5], pBack[0]);
-      tlBack[6] = lerp( tracer.F[6], tracer.F[7], pBack[0]);
-      tlBack[1] = lerp( tlBack[3]  , tlBack[4]  , pBack[1]);
-      tlBack[2] = lerp( tlBack[5]  , tlBack[6]  , pBack[1]);
-      tlBack[0] = lerp( tlBack[1]  , tlBack[2]  , pBack[2]);
-      double fBack = tlBack[0]; //value at the back point
+      xfrac = pFront[0] - floor(pFront[0]);
+      yfrac = pFront[1] - floor(pFront[1]);
+      zfrac = pFront[2] - floor(pFront[2]);
 
-      //find a monotone path from the sample points to cell vertices,
-      //in order to locate the branches containing the samples
-      uint32_t maxVert=0, minVert=0;
-      uint32_t maxTrace=0, minTrace=0;
-      double *tlMin, *tlMax;
+      tlFront[3] = lerp( tracer.F[0], tracer.F[1], xfrac);
+      tlFront[4] = lerp( tracer.F[2], tracer.F[3], xfrac);
+      tlFront[5] = lerp( tracer.F[4], tracer.F[5], xfrac);
+      tlFront[6] = lerp( tracer.F[6], tracer.F[7], xfrac);
 
-      //start the search for the lower vertex from the lower sample point, and
-      //likewise for the upper vertex
-      if (fFront < fBack) {	
-        tlMin = tlFront; 
+      tlFront[1] = lerp( tlFront[3] , tlFront[4] , yfrac);
+      tlFront[2] = lerp( tlFront[5] , tlFront[6] , yfrac);
+
+      tlFront[0] = lerp( tlFront[1] , tlFront[2] , zfrac);
+
+      fFront = tlFront[0];
+
+      ///////////////////
+      //compute back value
+      //////////////////
+      pBack = org + ( tracer.tBack() * dir  );
+
+      xfrac = pBack[0] - floor(pBack[0]);
+      yfrac = pBack[1] - floor(pBack[1]);
+      zfrac = pBack[2] - floor(pBack[2]);
+
+      tlBack[3] = lerp( tracer.F[0], tracer.F[1], xfrac);
+      tlBack[4] = lerp( tracer.F[2], tracer.F[3], xfrac);
+      tlBack[5] = lerp( tracer.F[4], tracer.F[5], xfrac);
+      tlBack[6] = lerp( tracer.F[6], tracer.F[7], xfrac);
+
+      tlBack[1] = lerp( tlBack[3] , tlBack[4] , yfrac);
+      tlBack[2] = lerp( tlBack[5] , tlBack[6] , yfrac);
+
+      tlBack[0] = lerp( tlBack[1] , tlBack[2] , zfrac);
+
+      fBack = tlBack[0];
+
+      ////////////////
+      if (fFront < fBack) {
+        tlMin = tlFront;
         tlMax = tlBack;
       } else {
         tlMin = tlBack;
         tlMax = tlFront;
       }
-              
-      //find vertex below
+
+      ///////////////
+      //find branches above and below
+      /////////////
+
+      //start min trace
       if ( tlMin[2] > tlMin[1] ) {
-        minTrace = 1;
+              minTrace = 1;
       } else {
-        minVert += 4;
-        minTrace = 2;
+              minVert += 4;
+              minTrace = 2;
       }
+
+      //comparison 2 for minTrace
       if ( tlMin[ (minTrace<<1)+1 ] > tlMin[(minTrace<<1)+2] )  {
-        minVert += 2;
+              minVert += 2;
       }
+
+      //comparison 3 for minTrace
       if ( voxels[tracer.verts[minVert+1]] < voxels[tracer.verts[minVert]] ) {
-        minVert += 1;
+              minVert += 1;
       }
 
-      //find vertex above
+      //start max trace
       if ( tlMax[2] > tlMax[1] ) {
-        maxVert += 4;
-        maxTrace = 2;
+              maxVert += 4;
+              maxTrace = 2;
       } else {
-        maxTrace = 1;
+              maxTrace = 1;
       }
+
+      //comparison 2 for maxTrace
       if ( tlMax[ (maxTrace<<1)+1] < tlMin[(maxTrace<<1)+2] ) {
-        maxVert += 2;
+              maxVert += 2;
       }
+
+      //comparison 3 for maxTrace
       if ( voxels[tracer.verts[maxVert+1]] > voxels[tracer.verts[maxVert]] ) {
-        maxVert+= 1;
+              maxVert+= 1;
       }
 
-      //get branches
-      uint32_t br_up   = branch_map[tracer.verts[maxVert]];
-      uint32_t br_down = branch_map[tracer.verts[minVert]];
+      composite_segment(
+        tracer.tBack()-tracer.tFront(),
+        fFront, fBack,
+        tracer.verts[maxVert], tracer.verts[minVert],
+        result);
 
-      //get gradients at front and back points
-      Vec3d fGrad, bGrad;
-
-      fGrad[0] = sample_gradient(tracer.verts,0,&pFront[0]);
-      fGrad[1] = sample_gradient(tracer.verts,1,&pFront[0]);
-      fGrad[2] = sample_gradient(tracer.verts,2,&pFront[0]);
-
-      bGrad[0] = sample_gradient(tracer.verts,0,&pBack[0]);
-      bGrad[1] = sample_gradient(tracer.verts,1,&pBack[0]);
-      bGrad[2] = sample_gradient(tracer.verts,2,&pBack[0]);
-
-       // Composite
-      if ( fabs(fFront-fBack) < 1 ) { 
-        //segment has only one transfer function entry
-        double f = fFront;
-        maybe_normalize(fGrad);
-        double length = tracer.tBack() - tracer.tFront();
-        //uint32_t br = select_branch(br_up, br_down, f );
-        //uint32_t off = branch_tf_offset[br] - uint32_t(branch_lo_val[br]*(tf_res-1));
-        RGBAf c = 
-          sample_tf(global_tf_tex,f);
-          //toRGBAf(global_tf_tex[int(f)]);
-          //toRGBAf( tf_tex[off+int32_t(f)+1] );
-        c.a = 1.0f - powf(1.0f - c.a, length );
-        //c.a *= global_tf_tex[int(f)].a/255.0f;
-        result = blend_over(result,c);
-      } else {
-        //integrate along the segment
-        RGBAf c_seg = {0,0,0,0};
-
-        int f0 = int( min(fFront,fBack) );
-        int f1 = int( max(fFront,fBack) );
-        float len = (tracer.tBack()-tracer.tFront()) / float(abs(f1-f0));
-        for ( int x=f0, d = f0 < f1 ? 1 : -1 ; x!=f1; x += d ) {
-          RGBAf c = toRGBAf(global_tf_tex[x]);
-          c.a = 1.0f - powf(1.0f - c.a, len );
-          c_seg = blend_over(c_seg,c);
-        }
-
-        #if 0
-        if ( fFront < fBack ) { //going up
-          int f0 = int(fFront);
-          int f1 = int(fBack);
-          float len = (tracer.tBack()-tracer.tFront()) / float(f1-f0);
-          uint32_t br0 = select_branch(br_up, br_down, f0);
-          uint32_t br1 = select_branch(br_up, br_down, f1);
-          while( f0 != f1 ) {
-            if ( branch_depth[br0] > branch_depth[br1] ) {
-              //composite front over back   
-              if ( branch_saddle_value[br0] < f0 ) br0 = branch_parent[br0];
-              RGBAf c = 
-                //toRGBAf(global_tf_tex[f0]);
-                toRGBAf( tf_tex[branch_tf_offset[br0] - uint32_t(branch_lo_val[br0]*(tf_res-1))+1+f0] );
-              c.a *= global_tf_tex[int(f0)].a/255.0f;
-              c.a = 1.0f - powf(1.0f - c.a, len );
-              c_seg = blend_over(c,c_seg);
-              ++f0;
-            } else {
-              //composite back under front
-              if ( branch_saddle_value[br1] > f1 ) br1 = branch_parent[br1];
-              RGBAf c = 
-                //toRGBAf(global_tf_tex[f1]);
-                toRGBAf( tf_tex[branch_tf_offset[br1] - uint32_t(branch_lo_val[br1]*(tf_res-1))+1+f1] );
-              c.a *= global_tf_tex[int(f1)].a/255.0f;
-              c.a = 1.0f - powf(1.0f - c.a, len );
-              c_seg = blend_over(c_seg,c);
-              --f1;
-            }
-          }
-        } else { //going down
-          int f1 = int(fFront);
-          int f0 = int(fBack);
-          float len = (tracer.tBack()-tracer.tFront()) / float(f1-f0);
-          uint32_t br0 = select_branch(br_up, br_down, f0);
-          uint32_t br1 = select_branch(br_up, br_down, f1);
-          while( f0 != f1 ) {
-            if ( branch_depth[br1] > branch_depth[br0] ) {
-              //composite front over back   
-              if ( branch_saddle_value[br1] > f1 ) br1 = branch_parent[br1];
-              RGBAf c = 
-                //toRGBAf( global_tf_tex[f1] );
-                toRGBAf( tf_tex[branch_tf_offset[br1] - uint32_t(branch_lo_val[br1]*(tf_res-1))+1+f1] );
-              c.a *= global_tf_tex[int(f1)].a/255.0f;
-              c.a = 1.0f - powf(1.0f - c.a, len );
-              c_seg = blend_over(c,c_seg);
-              --f1;
-            } else {
-              //composite back under front
-              if ( branch_saddle_value[br0] < f0 ) br0 = branch_parent[br0];
-              RGBAf c = 
-                //toRGBAf( global_tf_tex[f0] );
-                toRGBAf( tf_tex[branch_tf_offset[br0] - uint32_t(branch_lo_val[br0]*(tf_res-1))+1+f0] );
-              c.a *= global_tf_tex[int(f0)].a/255.0f;
-              c.a = 1.0f - powf(1.0f - c.a, len );
-              c_seg = blend_over(c_seg,c);
-              ++f0;
-            }
-          }
-        }
-        #endif
-        result = blend_over(result,c_seg);
-      }
-
-      if (result.a > 0.95) break;
+      //if (result.a > 0.95) break;
     }
 
     //white background
@@ -1466,68 +1141,67 @@ void ContourTreeVolumeRenderer::sw_render
     out.b = uint8_t(255.0*result.b);
     out.a = uint8_t(255.0*result.a);
   }
-  #endif
 }
 
 
 //val is in the range 0..255
-uint32_t 
+uint32_t
 ContourTreeVolumeRenderer::select_branch( uint32_t up, uint32_t down, float val )
 {
   for (;;) {
     if (up==down) return up;
     if ( branch_depth[up] > branch_depth[down] ) {
-      if ( branch_saddle_value[up] < val ) return up; 
+      if ( branch_saddle_value[up] < val ) return up;
       else up=branch_parent[up];
     } else {
-      if ( branch_saddle_value[down] > val ) return down; 
+      if ( branch_saddle_value[down] > val ) return down;
       else down=branch_parent[down];
     }
   }
 }
 
 
-
-
-void ContourTreeVolumeRenderer::compute_gradients()
+void ContourTreeVolumeRenderer::composite_segment
+( float length,
+  float fFront,
+  float fBack,
+  uint vertAbove, uint vertBelow,
+  RGBAf & result )
 {
-  gradients = new int16_t[3*nvoxels];
-  uint32_t ystride = vol_size[0], zstride = vol_size[0]*vol_size[1];
-  #pragma omp parallel for
-  for ( int z=0; z<int(vol_size[2]); ++z ) {
-    uint32_t i=z*vol_size[0]*vol_size[1];
-    for ( uint32_t y=0; y<vol_size[1]; ++y ) 
-    for ( uint32_t x=0; x<vol_size[0]; ++x,++i ) {
-      
-      gradients[3*i+0] = 
-        int16_t( x<vol_size[0]-1 ? voxels[i+1] : voxels[i] ) -
-        int16_t( x>0 ? voxels[i-1] : voxels[i] );
+  double f = 0.5 * (fFront+fBack);
+  int f0 = int(f);
+  int f1 = f0 + 1;
+  double frac = f - f0;
 
-      gradients[3*i+1] = 
-        int16_t( y<vol_size[1]-1 ? voxels[i+ystride] : voxels[i] ) -
-        int16_t( y>0 ? voxels[i-ystride] : voxels[i] );
+  //cout << "f = " << f << ", len = " << length << endl;
 
-      gradients[3*i+2] = 
-        int16_t( uint32_t(z)<vol_size[2]-1 ? voxels[i+zstride]:voxels[i] ) -
-        int16_t( uint32_t(z)>0 ? voxels[i-zstride] : voxels[i] );
-    }
-  }
+  //get branch
+  uint32_t up = branch_map[vertAbove];
+  uint32_t down = branch_map[vertBelow];
+
+  uint32_t br = select_branch(up, down, f );
+  uint32_t off = branch_tf_offset[br] - uint32_t(branch_lo_val[br]*(tf_res-1));
+  const RGBA8 &c0 = tf_tex[off+int32_t(f0)+1];
+  const RGBA8 &c1 = tf_tex[off+int32_t(f1)+1];
+
+  //cout << int(c0.r) << ',' << int(c0.g) << ',' << int(c0.b) << endl;
+
+  float r = lerp( float(c0.r)/255.0f, float(c1.r)/255.0f, frac );
+  float g = lerp( float(c0.g)/255.0f, float(c1.g)/255.0f, frac );
+  float b = lerp( float(c0.b)/255.0f, float(c1.b)/255.0f, frac );
+  float a = lerp( float(c0.a)/255.0f, float(c1.a)/255.0f, frac );
+
+  float ga = global_tf_tex[int(f0)].a/255.0f;
+  a *= ga;
+
+  a = 1.0f - powf( 1.0f - a, length);
+  float alpha = (1.0f-result.a)*a;
+
+
+  //cout << "a = " << a << ", result.a = " << result.a << endl;
+  result.r += alpha * r;
+  result.g += alpha * g;
+  result.b += alpha * b;
+  result.a += alpha;
+
 }
-
-
-double ContourTreeVolumeRenderer::sample_gradient( uint32_t v[8], int d, double x[3] )
-{
-  double t[7]; 
-  t[3] = lerp( gradients[3*v[0]+d], gradients[3*v[1]+d], x[0]);
-  t[4] = lerp( gradients[3*v[2]+d], gradients[3*v[3]+d], x[0]);
-  t[5] = lerp( gradients[3*v[4]+d], gradients[3*v[5]+d], x[0]);
-  t[6] = lerp( gradients[3*v[6]+d], gradients[3*v[7]+d], x[0]);
-  t[1] = lerp( t[3] , t[4] , x[1]);
-  t[2] = lerp( t[5] , t[6] , x[1]);
-  t[0] = lerp( t[1] , t[2] , x[2]);
-  return t[0];
-}
-
-
-
-

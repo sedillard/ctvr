@@ -7,8 +7,8 @@
 //Because we are reading from 8bit textures, the drivers might want to do math
 //at low precision, but we don't want that.
 
-//Convert small if blocks to cmovs 
-#pragma optionNV(ifcvt all) 
+//Convert small if blocks to cmovs
+#pragma optionNV(ifcvt all)
 
 #pragma optionNV(inline all)
 #pragma optionNV(strict on)
@@ -44,7 +44,7 @@ uniform vec3 z_inch;
 uniform sampler2D global_tf_tex;
 
 // x_down,y_up,etc..
-// These round a texture coordinate up or down to the nearest 
+// These round a texture coordinate up or down to the nearest
 // texel boundary in a given dimension. Logically:
 //   x_down( vec3(3.76,2.34,5.55) ) = vec3(3.0,2.34,5.55)
 // The problem is that OpenGL puts the texel sample in the center
@@ -52,7 +52,7 @@ uniform sampler2D global_tf_tex;
 
 // |---*---|---*---|---*---|---*---|---*---|---*---|  real tex space
 //     |.......|.......|.......|.......|.......|      logical tex space
-//      
+//
 
 vec3 x_down( in vec3 p )
 {
@@ -109,7 +109,7 @@ vec3 z_up( vec3 p )
 }
 
 
-void swap( inout vec3 a, inout vec3 b ) 
+void swap( inout vec3 a, inout vec3 b )
 {
     vec3 t = a;
     a = b;
@@ -121,11 +121,11 @@ vec3 normal()
 {
     vec3 grad;
     vec3 frag_xyz = gl_TexCoord[0].xyz;
-    grad.x = texture3D( scalar_tex, frag_xyz + x_inch ).a - 
+    grad.x = texture3D( scalar_tex, frag_xyz + x_inch ).a -
              texture3D( scalar_tex, frag_xyz - x_inch ).a ;
-    grad.y = texture3D( scalar_tex, frag_xyz + y_inch ).a - 
+    grad.y = texture3D( scalar_tex, frag_xyz + y_inch ).a -
              texture3D( scalar_tex, frag_xyz - y_inch ).a ;
-    grad.z = texture3D( scalar_tex, frag_xyz + z_inch ).a - 
+    grad.z = texture3D( scalar_tex, frag_xyz + z_inch ).a -
              texture3D( scalar_tex, frag_xyz - z_inch ).a ;
     return normalize(grad);
 }
@@ -142,30 +142,30 @@ void main ()
     vec3 hi_pnt = x_up  ( frag_xyz );
 
     vec3 t_pnt;
-    
-    if ( texture3D(scalar_tex,lo_pnt).a > texture3D(scalar_tex,hi_pnt).a ) 
+
+    if ( texture3D(scalar_tex,lo_pnt).a > texture3D(scalar_tex,hi_pnt).a )
         swap(lo_pnt,hi_pnt);
 
     //look for a corner vertex with value no greater than f
     t_pnt  = y_up  (lo_pnt);
     lo_pnt = y_down(lo_pnt);
-    if ( texture3D(scalar_tex,lo_pnt).a > texture3D(scalar_tex,t_pnt).a ) 
+    if ( texture3D(scalar_tex,lo_pnt).a > texture3D(scalar_tex,t_pnt).a )
         swap(lo_pnt,t_pnt);
 
     t_pnt  = z_up  (lo_pnt);
     lo_pnt = z_down(lo_pnt);
-    if ( texture3D(scalar_tex,lo_pnt).a > texture3D(scalar_tex,t_pnt).a ) 
+    if ( texture3D(scalar_tex,lo_pnt).a > texture3D(scalar_tex,t_pnt).a )
         swap(lo_pnt,t_pnt);
 
     //look for a corner vertex with value no less than f
     t_pnt  = y_up  (hi_pnt);
     hi_pnt = y_down(hi_pnt);
-    if ( texture3D(scalar_tex,hi_pnt).a < texture3D(scalar_tex,t_pnt).a ) 
+    if ( texture3D(scalar_tex,hi_pnt).a < texture3D(scalar_tex,t_pnt).a )
         swap(hi_pnt,t_pnt);
 
     t_pnt  = z_up  (hi_pnt);
     hi_pnt = z_down(hi_pnt);
-    if ( texture3D(scalar_tex,hi_pnt).a < texture3D(scalar_tex,t_pnt).a ) 
+    if ( texture3D(scalar_tex,hi_pnt).a < texture3D(scalar_tex,t_pnt).a )
         swap(hi_pnt,t_pnt);
 
     vec2 hi_branch = texture3D(branch_map_tex, hi_pnt).ra;
@@ -174,7 +174,7 @@ void main ()
     float lo_depth = texture2D( depth_tex,      lo_branch ).a;
 
     vec2 the_branch;
-    
+
     #if 1 //this is a good but slow benchmark
     for(int i=0; i<MAX_ITRS; ++i) {
         float hi_saddle = texture2D( saddle_val_tex, hi_branch ).a;
@@ -209,17 +209,17 @@ void main ()
     bool go = any(hi_branch != lo_branch);
     for(int i=0; go && i<MAX_ITRS; ++i) {
         bool hi_depth_greater = hi_depth > lo_depth;
-        
+
         vec2 deeper_branch = hi_depth > lo_depth ? hi_branch : lo_branch;
 
-        float deeper_saddle_val = 
+        float deeper_saddle_val =
             texture2D( saddle_val_tex, hi_depth>lo_depth?
                                        hi_branch:lo_branch  ).a;
 
-        vec2 parent_of_deeper = 
+        vec2 parent_of_deeper =
             texture2D( parent_tex, hi_depth>lo_depth?
                                    hi_branch:lo_branch ).ra;
-        
+
         if (hi_depth > lo_depth) {
             the_branch = hi_branch;
             go = any(hi_branch != lo_branch) && deeper_saddle_val >= f;
@@ -236,7 +236,7 @@ void main ()
 
 
     vec2 tf_index = texture2D( tf_index_tex, the_branch ).ra;
-    
+
     tf_index.x += f * float(TF_RES) * tf_tex_size.z ;
     if (tf_index.x > 1.0) {
         tf_index.x -= 1.0;
@@ -245,10 +245,10 @@ void main ()
 
     //the fragment color
     vec4 main_color = texture2D( tf_tex, tf_index );
-    
+
 
     main_color.rgb *= 0.5 + 0.5 * abs(dot(normal(),light_vec));
-    
+
     gl_FragColor = main_color;
     gl_FragColor.a *= texture2D( global_tf_tex, vec2(f,0.0) ).a;
 

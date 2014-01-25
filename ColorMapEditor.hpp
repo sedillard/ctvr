@@ -9,7 +9,7 @@
 #include "Color.hpp"
 
 
-class ColorMapEditor : public QGLWidget   
+class ColorMapEditor : public QGLWidget
 {
   Q_OBJECT
 
@@ -21,7 +21,7 @@ class ColorMapEditor : public QGLWidget
   enum Mode { Curve, Line };
 
   ColorMapEditor( QWidget *parent=0 );
-  
+
   void initializeGL();
   void resizeGL(int,int);
   void paintGL();
@@ -29,7 +29,7 @@ class ColorMapEditor : public QGLWidget
   Mode mode;
   Channel channel;
 
-  RGBA8 rgba[resolution]; 
+  RGBA8 rgba[resolution];
   HLSAf hlsa[resolution];
 
   void update_colors ();
@@ -43,13 +43,13 @@ class ColorMapEditor : public QGLWidget
   void draw_channel(Channel chan);
   void write_hlsa_to_rgba(int ibegin, int iend );
   void write_rgba_to_hlsa( int ibegin, int iend );
-  
+
   double prev_x,prev_y;
   GLuint bg_tex, color_tex;
   bool colors_need_update;
 
 
-  Q_SIGNALS:
+  signals:
     void edited (RGBA8*);
 };
 

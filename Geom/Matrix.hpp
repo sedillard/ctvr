@@ -25,8 +25,8 @@ struct Matrix : Vec< m, Vec<n,T> >
   template <typename S>
   Matrix (S (*s)[n]) { for (int i=0; i<m; ++i) base_type::elems[i] = row_type(s[i]); }
 
-  Matrix( const T& d ) 
-  { 
+  Matrix( const T& d )
+  {
     for (int i=0; i<m; ++i)
     for (int j=0; j<n; ++j) base_type::elems[i][j] = (i==j)?d:0;
   }
@@ -39,17 +39,17 @@ struct Matrix : Vec< m, Vec<n,T> >
   void set_row( int i, const row_type& r ) { base_type::elems[i] = r; }
   void set_col( int j, const col_type& c ) { for (int i=0; i<m; ++i) base_type::elems[i][j] = c[i]; }
 
-  void transpose() 
+  void transpose()
   {
     for (int i=0; i<m; ++i)
-    for (int j=(i+1); j<n; ++j) 
+    for (int j=(i+1); j<n; ++j)
       std::swap( base_type::elems[i][j], base_type::elems[j][i] );
   }
 
   void scale( const T& s ) { for (int i=0; i<m; ++i) base_type::elems[i][i] *= s; }
   void scale( const Vec<m,T>& s ) { for (int i=0; i<m; ++i) base_type::elems[i][i] *= s[i]; }
 
-  
+
   template <int x, int y> static
   Matrix from_upper_left( Matrix<x,y,T> const& src ) {
     Matrix<m,n,T> dst;
@@ -64,17 +64,17 @@ template <int m, int n, typename T>
 Matrix<m,n,T> Matrix<m,n,T>::identity(1);
 
 template <int m, int n, typename T> inline
-Matrix<n,m,T> transpose(const Matrix<m,n,T>& a) 
-{ 
+Matrix<n,m,T> transpose(const Matrix<m,n,T>& a)
+{
   Matrix<n,m,T> b;
-  for (int i=0; i<m; ++i) 
-    for (int j=0; j<n; ++j) 
+  for (int i=0; i<m; ++i)
+    for (int j=0; j<n; ++j)
       b[j][i] = a[i][j];
   return b;
 }
 
 template <int m, int n, int o, typename T> inline
-Matrix<m,o,T> operator*( const Matrix<m,n,T>& a, const Matrix<n,o,T>& b ) 
+Matrix<m,o,T> operator*( const Matrix<m,n,T>& a, const Matrix<n,o,T>& b )
 {
   Matrix<m,o,T> c;
   for (int i=0; i<m; ++i)
@@ -104,11 +104,11 @@ Vec<n,T> operator*( const Vec<n,T>& v,  const Matrix<m,n,T>& a )
 
 //accumulate multiply
 template <int n, typename T> inline
-Matrix<n,n,T>& operator*=( Matrix<n,n,T>& a, const Matrix<n,n,T>& b ) 
+Matrix<n,n,T>& operator*=( Matrix<n,n,T>& a, const Matrix<n,n,T>& b )
 { return (a = a*b); }
 
-template <int m, int n, typename T> 
-void gauss_elim( Matrix<m,n,T> & a ) 
+template <int m, int n, typename T>
+void gauss_elim( Matrix<m,n,T> & a )
 {
   //U of LU decomp is put in upper part of a. L is left in lower part of a, but
   //entries of L still need to be divided by the diagonal of U
@@ -122,8 +122,8 @@ void gauss_elim( Matrix<m,n,T> & a )
         r=i;
       }
     }
-    if(r != s) 
-      for(int j=0; j<n; ++j) 
+    if(r != s)
+      for(int j=0; j<n; ++j)
         std::swap(a[s][j],a[r][j]);
     for(int i=s+1; i<m; ++i) {
       double f = -a[i][s]/a[s][s];
@@ -135,21 +135,21 @@ void gauss_elim( Matrix<m,n,T> & a )
 }
 
 template <int m, int n, typename T> inline
-void lu_decomp( Matrix<m,n,T> & a ) 
+void lu_decomp( Matrix<m,n,T> & a )
 {
-  gauss_elim(a); 
+  gauss_elim(a);
   //finishes LU decomposition by dividing elements below the diagonal
-  for (int j=0;   j<m; ++j) 
-  for (int i=j+1; i<m; ++i) 
+  for (int j=0;   j<m; ++j)
+  for (int i=j+1; i<m; ++i)
     a[i][j] /= a[j][j];
 }
 
-template <int n, typename T> 
+template <int n, typename T>
 Matrix<n,n,T> inverse( const Matrix<n,n,T>& a)
 {
   Matrix<n,n,T> r; //result
   Matrix<n,n+n,T> e; //extended Matrix
-  for (int i=0; i<n; ++i) 
+  for (int i=0; i<n; ++i)
   for (int j=0; j<n; ++j) {
     e[i][j] = a[i][j];
     e[i][j+n] = (i==j) ? 1 : 0;
@@ -162,13 +162,13 @@ Matrix<n,n,T> inverse( const Matrix<n,n,T>& a)
         e[i][n+j] -= e[i][k]*e[k][n+j];
       e[i][n+j] /= e[i][i];
       r[i][j] = e[i][j+n]; //store result
-  } 
+  }
   return r;
 }
 
 
 
-template <int n, typename T> 
+template <int n, typename T>
 T det( const Matrix<n,n,T>& a_)
 {
   Matrix<n,n,T> a = a_;
@@ -183,7 +183,7 @@ std::pair<Matrix<n,n,T>,T> inverse_and_det( const Matrix<n,n,T>& a)
 {
   std::pair<Matrix<n,n,T>,T> r; //result
   Matrix<n,n+n,T> e; //extended matrix
-  for (int i=0; i<n; ++i) 
+  for (int i=0; i<n; ++i)
   for (int j=0; j<n; ++j) {
     e[i][j] = a[i][j];
     e[i][j+n] = (i==j) ? 1 : 0;
@@ -201,8 +201,8 @@ std::pair<Matrix<n,n,T>,T> inverse_and_det( const Matrix<n,n,T>& a)
         e[i][n+j] -= e[i][k]*e[k][n+j];
       e[i][n+j] /= e[i][i];
       r.first[i][j] = e[i][j+n]; //copy back into a
-  } 
-  
+  }
+
   return r;
 }
 

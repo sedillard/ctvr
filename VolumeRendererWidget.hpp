@@ -8,17 +8,17 @@
 #include "ContourTreeVolumeRenderer.hpp"
 
 
-class VolumeRendererWidget : public QGLWidget 
+class VolumeRendererWidget : public QGLWidget
 {
   Q_OBJECT
 
   ContourTreeVolumeRenderer *ctvr;
-	
+
   public:
     VolumeRendererWidget(
-      ContourTreeVolumeRenderer *ctvr, 
+      ContourTreeVolumeRenderer *ctvr,
       QWidget *parent=0 );
-          
+
     void mousePressEvent ( QMouseEvent* );
     void mouseMoveEvent ( QMouseEvent* );
     void wheelEvent ( QWheelEvent* );
@@ -27,7 +27,7 @@ class VolumeRendererWidget : public QGLWidget
     void mouseDoubleClickEvent ( QMouseEvent* ) {}
     void keyPressEvent ( QKeyEvent* ) {}
     void keyReleaseEvent( QKeyEvent* ) {}
-    
+
     void paintGL();
     void resizeGL(int w, int h);
     void initializeGL();
@@ -45,7 +45,7 @@ class VolumeRendererWidget : public QGLWidget
 
     void start_sw_rendering();
     void continue_sw_rendering();
-    
+
 };
 
 #endif

@@ -25,10 +25,10 @@ struct ContourTree
   uint8_t *voxels; //not owned
 
   //Nodes of the contour tree are given ids in a contiguous range of integers.
- 
+
   //Branches are also given ids, and there are roughly half as many branches.
   //The root branch is always id 0.
-  
+
   //A branch is accessed by its root node, the place where it meets
   //the rest of the tree. You can follow a branch out from that node
   //by walking along arcs whose branch_root field points to that node.
@@ -40,9 +40,9 @@ struct ContourTree
 
   void build(); //actually constructs the contour tree
 
-  template <typename OutputItr> 
+  template <typename OutputItr>
   void get_branch_children( uint32_t b, OutputItr out );
-  
+
   bool branch_is_ascending( uint32_t b );
 
   std::pair<Node*,Node*> branch_range( uint32_t b );
@@ -57,7 +57,7 @@ template<typename OutputItr>
 void get_ascending_branch_children( ContourTree::Arc* arc, OutputItr out )
 {
   while( arc ) {
-    ContourTree::Arc *next = 0; 
+    ContourTree::Arc *next = 0;
     for ( ContourTree::Arc *a=arc->hi->up; a; a=a->next_up ) {
       if (a->branch==arc->branch) next=a;
       else *(out++) = a->branch;
@@ -73,12 +73,12 @@ template<typename OutputItr>
 void get_descending_branch_children( ContourTree::Arc* arc, OutputItr out )
 {
   while( arc ) {
-    ContourTree::Arc *next = 0; 
+    ContourTree::Arc *next = 0;
     for ( ContourTree::Arc *a=arc->lo->down; a; a=a->next_down ) {
       if (a->branch==arc->branch) next=a;
       else *(out++) = a->branch;
     }
-    for ( ContourTree::Arc *a=arc->lo->up; a; a=a->next_up ) 
+    for ( ContourTree::Arc *a=arc->lo->up; a; a=a->next_up )
       if ( a!=arc ) *(out++) = a->branch;
     arc = next;
   }

@@ -16,7 +16,7 @@ void append_vector( std::vector<T> & dst, std::vector<T> & src )
   std::copy(src.begin(),src.end(),dst.begin()+s);
 }
 
-struct Saddle 
+struct Saddle
 {
   enum Type { YZFace, XZFace, XYFace, Body1, Body2 };
   enum Sort { SortNaturally, SortBefore, SortAfter };
@@ -32,17 +32,17 @@ struct Saddle
   int8_t symbolic;
   int8_t sort;
   int8_t orientation;
-      // For pairs of body saddles: 
-      //   Indicates which cell vertex is reachable by a monotone path. 
-      // For face saddles: 
-      //  0 : vertices 0 and 3 are below 
+      // For pairs of body saddles:
+      //   Indicates which cell vertex is reachable by a monotone path.
+      // For face saddles:
+      //  0 : vertices 0 and 3 are below
       //  1 : vertices 1 and 2 are below
 
-  
-  Saddle() : 
+
+  Saddle() :
     vert(-1),next(0),whom(-1),
     join_comp(0), split_comp(0),
-    symbolic(false), 
+    symbolic(false),
     sort(SortNaturally),
     orientation(-1)
     {}
@@ -59,7 +59,7 @@ struct Trilinear
   std::vector<Saddle*> saddle_map; //for each voxel, yields the linked list of saddles stored there
   std::vector<Component*> join_comps, split_comps;
 
-  //reachable_max and reachable_min yield, for each voxel, a max or min that is 
+  //reachable_max and reachable_min yield, for each voxel, a max or min that is
   //reachable by a monotone path
   std::vector<uint32_t> reachable_max,reachable_min;
 
@@ -80,7 +80,7 @@ struct Trilinear
   //
   // NB: (i/n)-1 == enum Saddle::Type
 
-  
+
   Trilinear( Value *values_, uint32_t ncols, uint32_t nrows, uint32_t nstacks )
   {
     values = values_; //does not own!
@@ -99,7 +99,7 @@ struct Trilinear
   ~Trilinear()
   {
     for ( uint32_t i=0; i<nvoxels; ++i ) {
-      Saddle *s=saddle_map[i];  
+      Saddle *s=saddle_map[i];
       while (s) {
         Saddle *t =s;
         s=s->next;
@@ -107,7 +107,7 @@ struct Trilinear
       }
     }
   }
- 
+
   Saddle* saddle( uint32_t i ) const
     //here the i/nvoxels determines the type
   {
@@ -117,7 +117,7 @@ struct Trilinear
     return s;
   }
 
-  Saddle* saddle( Saddle::Type t, uint32_t i ) const 
+  Saddle* saddle( Saddle::Type t, uint32_t i ) const
     //here i < nvoxels
   {
     Saddle *s = saddle_map[i];
@@ -130,7 +130,7 @@ struct Trilinear
   {
     return saddle(t, x+y*stride[1]+z*stride[2] );
   }
-  
+
   void voxel_pos( uint32_t i, uint32_t & x, uint32_t & y, uint32_t & z ) const
   {
     assert( i < nvoxels );
@@ -138,21 +138,21 @@ struct Trilinear
     y = (i-z*stride[2]) / size[0],
     x = i % size[0];
   }
-  
 
-  //Comparison functions 
+
+  //Comparison functions
   static
   bool compare_ptrs( const Value *a, const Value *b )
-  { 
-    return *a!=*b ? *a<*b : a<b; 
+  {
+    return *a!=*b ? *a<*b : a<b;
   }
-  
+
   struct compare_voxels
   {
     const Trilinear & t;
     compare_voxels( const Trilinear & t_ ) : t(t_) {}
     bool operator()( const uint32_t & a, const uint32_t b ) const
-    { 
+    {
       assert(a<t.nvoxels&&b<t.nvoxels);
       return compare_ptrs(t.values+a,t.values+b);
     }
@@ -163,15 +163,15 @@ struct Trilinear
     const Trilinear & t;
     compare_saddles( const Trilinear & t_ ) : t(t_) {}
     bool operator()( Saddle* sa, Saddle* sb ) const
-    { 
-      return (sa->value!=sb->value) 
+    {
+      return (sa->value!=sb->value)
                 ? (sa->value < sb->value)
                 : (sa->whom != sb->whom)
                     ? (sa->whom < sb->whom)
                     : (sa->sort < sb->sort);
     }
     bool operator()( const uint32_t & a, const uint32_t & b ) const
-    { 
+    {
       Saddle *sa = t.saddle(a);
       Saddle *sb = t.saddle(b);
       return (*this)(sa,sb);
@@ -199,12 +199,12 @@ struct Trilinear
 
   void push_if_less( Value *i, Value *j, int & nlink, uint32_t link[] ) const
   {
-    if ( compare_ptrs(j,i) ) link[nlink++] = j-values; 
+    if ( compare_ptrs(j,i) ) link[nlink++] = j-values;
   }
 
   int voxel_lower_link( uint32_t i, uint32_t link[] ) const
   {
-    uint32_t x,y,z; 
+    uint32_t x,y,z;
     voxel_pos(i,x,y,z);
     int nlink=0;
     Value *p = values+i;
@@ -219,12 +219,12 @@ struct Trilinear
 
   void push_if_greater( Value *i, Value *j, int & nlink, uint32_t link[] ) const
   {
-    if ( compare_ptrs(i,j) ) link[nlink++] = j-values; 
+    if ( compare_ptrs(i,j) ) link[nlink++] = j-values;
   }
 
   int voxel_upper_link( uint32_t i, uint32_t link[] ) const
   {
-    uint32_t x,y,z; 
+    uint32_t x,y,z;
     voxel_pos(i,x,y,z);
     int nlink=0;
     Value *p = values+i;
@@ -271,8 +271,8 @@ struct Trilinear
           int nnbrs=0;
           for ( int j=0; j<8; ++j ) {
             if (j != not_connected) {
-              uint32_t n = i + (j&1)*stride[0] + 
-                               ((j&2)>>1)*stride[1] + 
+              uint32_t n = i + (j&1)*stride[0] +
+                               ((j&2)>>1)*stride[1] +
                                ((j&4)>>2)*stride[2] ;
               if ( values[n] < s->value ) nbrs[nnbrs++] = n;
             }
@@ -317,8 +317,8 @@ struct Trilinear
           int nnbrs=0;
           for ( int j=0; j<8; ++j ) {
             if (j != not_connected) {
-              uint32_t n = i + (j&1)*stride[0] + 
-                               ((j&2)>>1)*stride[1] + 
+              uint32_t n = i + (j&1)*stride[0] +
+                               ((j&2)>>1)*stride[1] +
                                ((j&4)>>2)*stride[2] ;
               if ( values[n] > s->value ) nbrs[nnbrs++] = n;
             }
@@ -333,15 +333,15 @@ struct Trilinear
 
   int saddle_lower_link( uint32_t i, uint32_t link[] ) const
   {
-    return saddle_lower_link(Saddle::Type((i/nvoxels)-1),i%nvoxels,link); 
+    return saddle_lower_link(Saddle::Type((i/nvoxels)-1),i%nvoxels,link);
   }
 
   int saddle_upper_link( uint32_t i, uint32_t link[] ) const
   {
-    return saddle_upper_link(Saddle::Type((i/nvoxels)-1),i%nvoxels,link); 
+    return saddle_upper_link(Saddle::Type((i/nvoxels)-1),i%nvoxels,link);
   }
 
-  int lower_link( uint32_t i, uint32_t link[] ) const 
+  int lower_link( uint32_t i, uint32_t link[] ) const
   {
     if (i < nvoxels) {
       return voxel_lower_link(i,link);
@@ -350,7 +350,7 @@ struct Trilinear
     }
   }
 
-  int upper_link( uint32_t i, uint32_t link[] ) const 
+  int upper_link( uint32_t i, uint32_t link[] ) const
   {
     if (i < nvoxels) {
       return voxel_upper_link(i,link);
@@ -358,8 +358,8 @@ struct Trilinear
       return saddle_upper_link(i,link);
     }
   }
-  
-  
+
+
 
   //returns a newly allocated saddle if there's one here, null otherwise
   Saddle* is_face_saddle ( Value* f[4] )  //vertices on the face here
@@ -377,12 +377,12 @@ struct Trilinear
       //check for real (numerical) saddle
       double a = (double)*f[0] - *f[1] - *f[2] + *f[3];
       if (a != 0) {
-        
+
         if ( *f[0]==*f[1] ) { //saddle on bottom edge
           s->sort = Saddle::SortAfter;
           s->whom = f[0]-values;
           s->value = *f[0];
-        } else if ( *f[0] == *f[2] ) { //saddle on left edge 
+        } else if ( *f[0] == *f[2] ) { //saddle on left edge
           s->sort = Saddle::SortAfter;
           s->whom = f[0]-values;
           s->value = *f[0];
@@ -395,10 +395,10 @@ struct Trilinear
           s->whom = f[3]-values;
           s->value = *f[3];
         } else { //interior saddle
-          double 
+          double
             b = double(*f[1]) - *f[0],
             c = double(*f[2]) - *f[0],
-            x = -c/a, 
+            x = -c/a,
             y = -b/a,
             v = a*x*y + b*x + c*y + *f[0];
           assert( x>0 && x<1 && y>0 && y<1 );
@@ -410,26 +410,26 @@ struct Trilinear
         }
       } else {
         if ( e0 ) {
-          //   1 <---- 0      
-          //   ^       |  Saddle needs to sort 
+          //   1 <---- 0
+          //   ^       |  Saddle needs to sort
           //   |       |  after 0 and (1)
-          //   | s     v  
-          //  (1)----> 1      
+          //   | s     v
+          //  (1)----> 1
           s->symbolic = true;
           s->sort = Saddle::SortAfter;
           s->value = *f[0];
           s->whom = f[0]-values;
         } else {
-          //  0 ---->(0)  
-          //  |     s ^  Saddle needs to sort 
+          //  0 ---->(0)
+          //  |     s ^  Saddle needs to sort
           //  |       |  before 1 and (0)
-          //  v       |  
-          //  1 <---- 0  
+          //  v       |
+          //  1 <---- 0
           s->symbolic = true;
           s->sort = Saddle::SortBefore;
           s->value = *f[3];
           s->whom = f[3]-values;
-        } 
+        }
       }
       return s;
     } else {
@@ -475,20 +475,20 @@ struct Trilinear
               if (s->whom != uint32_t(-1)) place_holders.push_back(s->whom);
               assert(saddle(s->vert) == s);
             }
-            
+
             //move to next face
-            for ( int i=0; i<4; ++i )  v[i] += offs[0]; 
+            for ( int i=0; i<4; ++i )  v[i] += offs[0];
           }
         }
-        #pragma omp critical 
+        #pragma omp critical
         {
           append_vector(nonvoxel_saddles,saddles);
           append_vector(this->place_holders,place_holders);
         }
       }
-      //rotate to next dimension 
+      //rotate to next dimension
       { uint32_t t = size[0];
-        size[0] = size[1]; 
+        size[0] = size[1];
         size[1] = size[2];
         size[2] = t;
         t = offs[0];
@@ -500,10 +500,10 @@ struct Trilinear
   }
 
 
-  
+
   std::pair<Saddle*,Saddle*> are_body_saddles( Value v[8] )
   {
-    double 
+    double
       h = v[0],
       e = v[1] - v[0],
       f = v[2] - v[0],
@@ -515,7 +515,7 @@ struct Trilinear
       ax = a*e - b*d,
       ay = a*f - b*c,
       az = a*g - c*d;
-    
+
     Saddle *s1=0, *s2=0;
     if (a != 0) {
       if ( ax*ay*az < 0 ) {
@@ -524,10 +524,10 @@ struct Trilinear
         double x1 = -( c + discr / ax ) / a;
         double y1 = -( d + discr / ay ) / a;
         double z1 = -( b + discr / az ) / a;
-        
+
         if (0<x1 && x1<1 && 0<y1 && y1<1 && 0<z1 && z1<1 ) {
           s1 = new Saddle;
-          s1->value = 
+          s1->value =
             a*x1*y1*z1 + b*x1*y1 + c*y1*z1 + d*x1*z1 + e*x1 + f*y1 + g*z1 + h;
           s1->type = Saddle::Body1;
         }
@@ -536,13 +536,13 @@ struct Trilinear
         double y2 =  -( d - discr / ay ) / a;
         double z2 =  -( b - discr / az ) / a;
 
-        if (0<x2 && x2<1 && 0<y2 && y2<1 && 0<z2 && z2<1 ) { 
+        if (0<x2 && x2<1 && 0<y2 && y2<1 && 0<z2 && z2<1 ) {
           s2 = new Saddle;
-          s2->value = 
+          s2->value =
             a*x2*y2*z2 + b*x2*y2 + c*y2*z2 + d*x2*z2 + e*x2 + f*y2 + g*z2 + h;
           s2->type = Saddle::Body2;
         }
-                                
+
         if (s1 && s2) { //set the saddle orientations
           int o = (x1 < x2 ? 0 : 1) | (y1 < y2 ? 0 : 2) | (z1 < z2 ? 0 : 4);
           s1->orientation = o;
@@ -554,11 +554,11 @@ struct Trilinear
         double x = (c*e - b*g - d*f ) / (2*b*d);
         double y = (d*f - b*g - c*e ) / (2*b*c);
         double z = (b*g - c*e - d*f ) / (2*c*d);
-        if (0<x && x<1 && 0<y && y<1 && 0<z && z<1 ) { 
+        if (0<x && x<1 && 0<y && y<1 && 0<z && z<1 ) {
           s1 = new Saddle;
           s1->type = Saddle::Body1;
           s1->value = b*x*y + c*y*z + d*x*z + e*x + f*y + g*z + h;
-        } 
+        }
       }
     }
     return std::make_pair(s1,s2);
@@ -573,7 +573,7 @@ struct Trilinear
       for (uint32_t y = 0; y < size[1]-1; ++y) {
         uint32_t i=y*stride[1]+z*stride[2];
         for (uint32_t x = 0; x < size[0]-1; ++x,++i) {
-          Value v[8] = 
+          Value v[8] =
             { values[i]
             , values[i+1]
             , values[i+stride[1]]
@@ -598,10 +598,10 @@ struct Trilinear
             assert(saddle(s.second->vert) == s.second);
           }
         }
-      } 
-      #pragma omp critical 
+      }
+      #pragma omp critical
       {
-        append_vector(nonvoxel_saddles,saddles); 
+        append_vector(nonvoxel_saddles,saddles);
       }
     }
 
@@ -631,7 +631,7 @@ struct Trilinear
               *       / |      / |
               *      1--------0  |
               *      ^  1-----|--0
-              *      | /      | / Body saddle s needs 
+              *      | /      | / Body saddle s needs
               *      |/'s     |/  to sort above (1) but
               *     (1)-->--- 1   below the other 1s
               */
@@ -652,7 +652,7 @@ struct Trilinear
           }
         }
       }
-      #pragma omp critical 
+      #pragma omp critical
       {
         append_vector(nonvoxel_saddles,saddles);
         append_vector(this->place_holders,place_holders);
@@ -684,10 +684,10 @@ struct Trilinear
               *     / |      / ^
               *    1--------0  |
               *    |  1-----|--0
-              *    | /      | / Body saddle s needs 
-              *    |/       |/  to sort below (0) but 
+              *    | /      | / Body saddle s needs
+              *    |/       |/  to sort below (0) but
               *    1--------1   above the other 0's
-              */  
+              */
               Saddle *s = new Saddle;
               s->type = Saddle::Body2;
               s->value = values[i];
@@ -704,127 +704,64 @@ struct Trilinear
             }
           }
         }
-      } 
-      #pragma omp critical 
+      }
+      #pragma omp critical
       {
         append_vector(nonvoxel_saddles,saddles);
         append_vector(this->place_holders,place_holders);
       }
     }
   }
-  
+
   void find_critical_voxels()
   {
     std::cout << "find critical voxels" << std::endl;
-    //#pragma omp parallel for
+    #pragma omp parallel for
     for ( int z=0; z<int(size[2]); ++z ) {
       std::vector<uint32_t> found_maxes,found_mins,found_saddles;
       for ( uint32_t y=0; y<size[1]; ++y ) {
         Value *i = values+y*stride[1]+z*stride[2];
         for ( uint32_t x=0; x<size[0]; ++x, i+=stride[0] ) {
           int32_t
-            x0 = (x>0)         ? (compare_ptrs(i,i-stride[0])?1:-1) : 0, 
-            x1 = (x<size[0]-1) ? (compare_ptrs(i,i+stride[0])?1:-1) : 0, 
-            y0 = (y>0)         ? (compare_ptrs(i,i-stride[1])?1:-1) : 0, 
-            y1 = (y<size[1]-1) ? (compare_ptrs(i,i+stride[1])?1:-1) : 0, 
-            z0 = (z>0)         ? (compare_ptrs(i,i-stride[2])?1:-1) : 0, 
+            x0 = (x>0)         ? (compare_ptrs(i,i-stride[0])?1:-1) : 0,
+            x1 = (x<size[0]-1) ? (compare_ptrs(i,i+stride[0])?1:-1) : 0,
+            y0 = (y>0)         ? (compare_ptrs(i,i-stride[1])?1:-1) : 0,
+            y1 = (y<size[1]-1) ? (compare_ptrs(i,i+stride[1])?1:-1) : 0,
+            z0 = (z>0)         ? (compare_ptrs(i,i-stride[2])?1:-1) : 0,
             z1 = (z<int(size[2]-1)) ? (compare_ptrs(i,i+stride[2])?1:-1) : 0,
             ddx = x0+x1, //these are something like second derivatives
             ddy = y0+y1, //they are zero if i is not extremal in that direction
-            ddz = z0+z1; 
+            ddz = z0+z1;
 
           bool critical = ddx!=0 && ddy!=0 && ddz!= 0;
           if (critical) {
             int index = 0-(ddx>>31)-(ddy>>31)-(ddz>>31); //arithmetic shift!
             switch(index) {
-              case 0 : 
-                //std::cout << "min at " << i-values << std::endl;
-                found_mins.push_back(i-values); 
+              case 0 :
+                found_mins.push_back(i-values);
                 break;
               case 1 :
-              case 2 : 
-                found_saddles.push_back(i-values); 
+              case 2 :
+                found_saddles.push_back(i-values);
                 break;
-              case 3 : 
-                //std::cout << "max at " << i-values << std::endl;
-                found_maxes.push_back(i-values); 
+              case 3 :
+                found_maxes.push_back(i-values);
                 break;
               default: assert(0 && "wtf?");
             }
           }
         }
       }
-      
-      #pragma omp critical 
-      { //collect 
+
+      #pragma omp critical
+      { //collect
         append_vector(maxes,found_maxes);
         append_vector(mins,found_mins);
         append_vector(voxel_saddles,found_saddles);
       }
     }
   }
-  
 
-  #if 0
-  void mark_reachable_maxes()
-  {
-    std::cout << "mark reachable maxes (queue)" << std::endl;
-    std::fill(reachable_max,reachable_max+nvoxels,-1);
-    int nmaxes = maxes.size();
-    #pragma omp parallel for
-    for ( int m=0; m<nmaxes; ++m ) {
-      std::deque<uint32_t> q; 
-      q.push_front(maxes[m]);
-      while (!q.empty()) {
-        uint32_t i = q.front();
-        q.pop_front();
-        if ( reachable_max[i] == uint32_t(-1) ) {
-          //at this point some other thread may have written to
-          //reachable_max[i] but it doesn't really matter
-          reachable_max[i] = maxes[m]; 
-          uint32_t nbrs[6];
-          int nnbrs = voxel_neighbors(i,nbrs);
-          for ( int n=0; n<nnbrs; ++n ) {
-            if ( compare_ptrs(values+nbrs[n],values+i) )
-              q.push_back(nbrs[n]);
-          }
-        }
-      }
-    }
-    for ( uint32_t i=0; i<nvoxels; ++i ) assert(reachable_max[i] != uint32_t(-1)); 
-  }
-
-  void mark_reachable_mins()
-  {
-    std::cout << "mark reachable mins (queue)" << std::endl;
-
-    std::fill(reachable_min,reachable_min+nvoxels,-1);
-    int nmins = mins.size();
-    #pragma omp parallel for
-    for ( int m=0; m<nmins; ++m ) {
-      std::deque<uint32_t> q; 
-      q.push_front(mins[m]);
-      while (!q.empty()) {
-        uint32_t i = q.front();
-        q.pop_front();
-        if ( reachable_min[i] == uint32_t(-1) ) {
-          //at this point some other thread may have written to
-          //reachable_min[i] but it doesn't really matter
-          reachable_min[i] = mins[m]; 
-          uint32_t nbrs[6];
-          int nnbrs = voxel_neighbors(i,nbrs);
-          for ( int n=0; n<nnbrs; ++n ) {
-            if ( compare_ptrs(values+i,values+nbrs[n]) )
-              q.push_back(nbrs[n]);
-          }
-        }
-      }
-    }
-    for ( uint32_t i=0; i<nvoxels; ++i ) assert(reachable_min[i] != uint32_t(-1)); 
-  }
-
-  #endif
-  
 
   void mark_reachable_maxes()
   {
@@ -834,7 +771,7 @@ struct Trilinear
     int nmaxes = maxes.size();
     #pragma omp parallel for
     for ( int m=0; m<nmaxes; ++m ) {
-      std::vector<uint32_t> stack; 
+      std::vector<uint32_t> stack;
       stack.push_back(maxes[m]);
       while (!stack.empty()) {
         uint32_t i = stack.back();
@@ -843,19 +780,19 @@ struct Trilinear
         if ( reachable_max[i] == uint32_t(-1) ) {
           //at this point some other thread may have written to
           //reachable_max[i] but it doesn't really matter
-          reachable_max[i] = maxes[m]; 
+          reachable_max[i] = maxes[m];
           uint32_t x,y,z;
           voxel_pos(i,x,y,z);
-          if ( z>0         && compare_ptrs(p-stride[2],p) /* && reachable_max[i-stride[2]] == uint32_t(-1) */ ) stack.push_back(i-stride[2]);
-          if ( z<size[2]-1 && compare_ptrs(p+stride[2],p) /* && reachable_max[i+stride[2]] == uint32_t(-1) */ ) stack.push_back(i+stride[2]);
-          if ( y>0         && compare_ptrs(p-stride[1],p) /* && reachable_max[i-stride[1]] == uint32_t(-1) */ ) stack.push_back(i-stride[1]);
-          if ( y<size[1]-1 && compare_ptrs(p+stride[1],p) /* && reachable_max[i+stride[1]] == uint32_t(-1) */ ) stack.push_back(i+stride[1]);
-          if ( x>0         && compare_ptrs(p-stride[0],p) /* && reachable_max[i-stride[0]] == uint32_t(-1) */ ) stack.push_back(i-stride[0]);
-          if ( x<size[0]-1 && compare_ptrs(p+stride[0],p) /* && reachable_max[i+stride[0]] == uint32_t(-1) */ ) stack.push_back(i+stride[0]);
+          if ( z>0         && compare_ptrs(p-stride[2],p) ) stack.push_back(i-stride[2]);
+          if ( z<size[2]-1 && compare_ptrs(p+stride[2],p) ) stack.push_back(i+stride[2]);
+          if ( y>0         && compare_ptrs(p-stride[1],p) ) stack.push_back(i-stride[1]);
+          if ( y<size[1]-1 && compare_ptrs(p+stride[1],p) ) stack.push_back(i+stride[1]);
+          if ( x>0         && compare_ptrs(p-stride[0],p) ) stack.push_back(i-stride[0]);
+          if ( x<size[0]-1 && compare_ptrs(p+stride[0],p) ) stack.push_back(i+stride[0]);
         }
       }
     }
-    for ( uint32_t i=0; i<nvoxels; ++i ) assert(reachable_max[i] != uint32_t(-1)); 
+    for ( uint32_t i=0; i<nvoxels; ++i ) assert(reachable_max[i] != uint32_t(-1));
   }
 
 
@@ -868,7 +805,7 @@ struct Trilinear
     int nmins = mins.size();
     #pragma omp parallel for
     for ( int m=0; m<nmins; ++m ) {
-      std::vector<uint32_t> stack; 
+      std::vector<uint32_t> stack;
       stack.push_back(mins[m]);
       while (!stack.empty()) {
         uint32_t i = stack.back();
@@ -876,25 +813,24 @@ struct Trilinear
         stack.pop_back();
         if ( reachable_min[i] == uint32_t(-1) ) {
           //at this point some other thread may have written to
-          //reachable_max[i] but it doesn't really matter
-          reachable_min[i] = mins[m]; 
+          //reachable_min[i] but it doesn't really matter
+          reachable_min[i] = mins[m];
           uint32_t x,y,z;
           voxel_pos(i,x,y,z);
-          if ( z>0         && compare_ptrs(p,p-stride[2]) /* && reachable_min[i-stride[2]] == uint32_t(-1) */ ) stack.push_back(i-stride[2]);
-          if ( z<size[2]-1 && compare_ptrs(p,p+stride[2]) /* && reachable_min[i+stride[2]] == uint32_t(-1) */ ) stack.push_back(i+stride[2]);
-          if ( y>0         && compare_ptrs(p,p-stride[1]) /* && reachable_min[i-stride[1]] == uint32_t(-1) */ ) stack.push_back(i-stride[1]);
-          if ( y<size[1]-1 && compare_ptrs(p,p+stride[1]) /* && reachable_min[i+stride[1]] == uint32_t(-1) */ ) stack.push_back(i+stride[1]);
-          if ( x>0         && compare_ptrs(p,p-stride[0]) /* && reachable_min[i-stride[0]] == uint32_t(-1) */ ) stack.push_back(i-stride[0]);
-          if ( x<size[0]-1 && compare_ptrs(p,p+stride[0]) /* && reachable_min[i+stride[0]] == uint32_t(-1) */ ) stack.push_back(i+stride[0]);
+          if ( z>0         && compare_ptrs(p,p-stride[2]) ) stack.push_back(i-stride[2]);
+          if ( z<size[2]-1 && compare_ptrs(p,p+stride[2]) ) stack.push_back(i+stride[2]);
+          if ( y>0         && compare_ptrs(p,p-stride[1]) ) stack.push_back(i-stride[1]);
+          if ( y<size[1]-1 && compare_ptrs(p,p+stride[1]) ) stack.push_back(i+stride[1]);
+          if ( x>0         && compare_ptrs(p,p-stride[0]) ) stack.push_back(i-stride[0]);
+          if ( x<size[0]-1 && compare_ptrs(p,p+stride[0]) ) stack.push_back(i+stride[0]);
         }
       }
     }
-    for ( uint32_t i=0; i<nvoxels; ++i ) assert(reachable_max[i] != uint32_t(-1)); 
+    for ( uint32_t i=0; i<nvoxels; ++i ) assert(reachable_max[i] != uint32_t(-1));
   }
 
-  void
-  merge_sorted_voxels_and_saddles 
-    ( std::vector<uint32_t> & order, //voxels already sorted. 
+  void merge_sorted_voxels_and_saddles (
+      std::vector<uint32_t> & order, //voxels already sorted.
       std::vector<Saddle*> & saddles_sorted ) //saddles sorted by compare_saddles
         //sorted_saddles will be merged into order
   {
@@ -908,12 +844,9 @@ struct Trilinear
 
       switch(s->sort) {
         case Saddle::SortNaturally: {
-          //std::cout << "Sorting " << s->vert << " Naturally " << std::endl;
           while( vi >= 0 && values[order[vi]] > s->value ) {
-            //std::cout << "moving " << order[vi] << " (value " << values[order[vi]] << ")" << std::endl;
-            order[end--] = order[vi--]; 
+            order[end--] = order[vi--];
           }
-          //std::cout << "moving " << s->vert << " (value " << s->value << ")" << std::endl;
           order[end--] = s->vert;
           --si;
           if (si>=0) s = saddles_sorted[si];
@@ -922,17 +855,13 @@ struct Trilinear
 
 
         case Saddle::SortBefore: {
-          //std::cout << "Sorting " << s->vert << " Before " << s->whom << std::endl;
           while( vi >= 0 && order[vi] != s->whom ) {
-            //std::cout << "moving " << order[vi] << " (value " << values[order[vi]] << ")" << std::endl;
-            order[end--] = order[vi--]; 
+            order[end--] = order[vi--];
           }
-          uint32_t ovi = order[vi]; // save order[vi] as ovi, same as whom 
-          //std::cout << "moving " << order[vi] << " (value " << values[order[vi]] << ")" << std::endl;
-          order[end--] = order[vi--];  // move whom into place 
+          uint32_t ovi = order[vi]; // save order[vi] as ovi, same as whom
+          order[end--] = order[vi--];  // move whom into place
           while( s->whom == ovi && s->sort == Saddle::SortBefore) {
-            // move all the saddles that sort before whom into place 
-            //std::cout << "moving " << s->vert << " (value " << s->value << ")" << std::endl;
+            // move all the saddles that sort before whom into place
             order[end--] = s->vert;
             if (si == 0) break;
             s = saddles_sorted[--si];
@@ -942,28 +871,24 @@ struct Trilinear
 
 
         case Saddle::SortAfter: {
-          //std::cout << "Sorting " << s->vert << " After " << s->whom << std::endl;
-          // this case is a bit complicated 
+          // this case is a bit complicated
           while ( vi >= 0 ) {
-            // first scan down the list of grid verts until we find s->whom 
+            // first scan down the list of grid verts until we find s->whom
             if ( order[vi] == s->whom ) {
               // due to careful choice of the initial sorting order
               // of saddles, we should find BBBBAAAAA at the end of
               // the saddle list, where the B's are the ones that
               // must come before whom, and the A's are those that
-              // come after. 
+              // come after.
               while( s->whom == order[vi] && s->sort == Saddle::SortAfter ) {
-                // move all the A's 
-                //std::cout << "moving " << s->vert << " (value " << s->value << ")" << std::endl;
-                order[end--] = s->vert; 
+                // move all the A's
+                order[end--] = s->vert;
                 if (si == 0) break;
                 s = saddles_sorted[--si] ;
               }
-              //std::cout << "moving " << order[vi] << " (value " << values[order[vi]] << ")" << std::endl;
-              order[end--] = order[vi]; // move whom 
+              order[end--] = order[vi]; // move whom
               while( s->whom == order[vi] && s->sort == Saddle::SortBefore ) {
-                // move all the B's 
-                //std::cout << "moving " << s->vert << " (value " << s->value << ")" << std::endl;
+                // move all the B's
                 order[end--] = s->vert;
                 if (si == 0) break;
                 s = saddles_sorted[--si] ;
@@ -972,9 +897,8 @@ struct Trilinear
 
               break;
             } else {
-              //std::cout << "moving " << order[vi] << " (value " << values[order[vi]] << ")" << std::endl;
-              order[end--] = order[vi--]; 
-              
+              order[end--] = order[vi--];
+
             }
           }
         }
@@ -985,25 +909,6 @@ struct Trilinear
     } //while
   }
 
-  
-  void laplacian_filter( Value w )
-  {
-    //#pragma omp parallel for
-    for ( int z=0; z<int(size[2]); ++z ) 
-    for ( uint32_t y=0; y<size[1]; ++y ) {
-      Value *i = values+y*stride[1]+z*stride[2];
-      for ( uint32_t x=0; x<size[0]; ++x, i+=stride[0] ) {
-        Value n=0,s=0;
-        if ( x>0 )         n+=1,s+=*(i-stride[0]);
-        if ( y>0 )         n+=1,s+=*(i-stride[1]);
-        if ( z>0 )         n+=1,s+=*(i-stride[2]);
-        if ( x<size[0]-1 ) n+=1,s+=*(i+stride[0]);
-        if ( y<size[1]-1 ) n+=1,s+=*(i+stride[1]);
-        if ( z<int(size[2]-1) ) n+=1,s+=*(i+stride[2]);
-        *i = (1-w)*(*i) + w*s/n;
-      }
-    }
-  }
 
   struct ComponentMap
   {
@@ -1011,9 +916,9 @@ struct Trilinear
     typedef Component* value_type;
     Trilinear & t;
     Tourtre::SweepType type;
-    ComponentMap( Trilinear & t_, Tourtre::SweepType type_ ) 
+    ComponentMap( Trilinear & t_, Tourtre::SweepType type_ )
       : t(t_),type(type_) {}
-    Component* & operator[]( uint32_t i ) 
+    Component* & operator[]( uint32_t i )
     {
       if ( type == Tourtre::Join ) {
         if ( i < t.nvoxels ) return t.join_comps[i];
@@ -1035,7 +940,7 @@ struct Trilinear
     saddle_map = std::vector<Saddle*>();
   }
 
-  float value( uint32_t i ) 
+  float value( uint32_t i )
   {
     if ( i < nvoxels ) return values[i];
     else return saddle(i)->value;

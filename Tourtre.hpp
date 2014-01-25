@@ -1,3 +1,6 @@
+// This file implements a generic sweep-and-merge algorithm for building
+// contour trees. See ContourTree.hpp/cpp for a concrete usage example.
+
 #ifndef TOURTRE_HPP_INCLUDED
 #define TOURTRE_HPP_INCLUDED
 
@@ -16,8 +19,10 @@ template < typename T > struct pointer_target<T*> { typedef T type; };
 
 enum SweepType { Join, Split };
 
+// An arc of a join (or split) tree, representing a conected component during
+// the sweep.
 template <typename Vertex_>
-struct SweepComponent 
+struct SweepComponent
 {
   typedef Vertex_ Vertex;
   SweepType type;
@@ -26,39 +31,39 @@ struct SweepComponent
   SweepComponent *next_pred;   //null-terminated linked list of predecessors
   SweepComponent *uf;          //union-find link
 
-  SweepComponent(SweepType t) 
+  SweepComponent(SweepType t)
     : type(t),succ(0),pred(0),next_pred(0),uf(this) {}
 
-  SweepComponent(SweepType t, const Vertex & b) 
+  SweepComponent(SweepType t, const Vertex & b)
     : type(t),birth(b),succ(0),pred(0),next_pred(0),uf(this) {}
 
-  SweepComponent(SweepType t, const Vertex & b,const Vertex & d) 
+  SweepComponent(SweepType t, const Vertex & b,const Vertex & d)
     : type(t),birth(b),succ(0),pred(0),next_pred(0),uf(this) {}
-  
-  void unite( SweepComponent* c ) 
+
+  void unite( SweepComponent* c )
   { uf = c->uf; }
 
   SweepComponent* find()
-  { 
-    // find parent 
+  {
+    // find parent
     SweepComponent* c=uf;
     while(c!=c->uf) { c=c->uf; }
-    // path compression 
+    // path compression
     SweepComponent *s=uf, *t;
     while(s!=c) { t=s->uf; s->uf=c; s=t; }
     uf = c;
     return c;
   }
-  
-  void add_pred( SweepComponent* c ) 
-  { 
+
+  void add_pred( SweepComponent* c )
+  {
     c->succ = this;
     c->next_pred = pred;
     pred = c;
   }
 
   void remove_pred( SweepComponent* c )
-  { 
+  {
     assert(pred);
     SweepComponent *p = pred;
     if (p == c) {
@@ -72,8 +77,8 @@ struct SweepComponent
     }
   }
 
-  void prune() 
-  { 
+  void prune()
+  {
     assert(pred == 0);
     if (succ) succ->remove_pred(this);
     succ = 0;
@@ -83,7 +88,7 @@ struct SweepComponent
   bool is_leaf() { return !pred; }
 
   SweepComponent* merge_with_succ()
-  { 
+  {
     assert( succ && succ->pred == this );
     assert( !next_pred );
     SweepComponent *s = succ;
@@ -104,6 +109,7 @@ struct SweepComponent
 template <typename Vertex_>
 struct Node;
 
+// A arc of the contour tree.
 template <typename Vertex_>
 struct Arc
 {
@@ -116,6 +122,7 @@ struct Arc
   Arc() : lo(0),hi(0),id(-1),next_up(0),next_down(0),branch(-1) {}
 };
 
+// A node of the contour tree.
 template <typename Vertex_>
 struct Node
 {
@@ -123,29 +130,29 @@ struct Node
   typedef Tourtre::Arc<Vertex> Arc;
   Vertex vertex;
   Arc *up,*down;
-  uint32_t id; 
+  uint32_t id;
   Node() : up(0),down(0) {}
 
   Node(Vertex v) : vertex(v),up(0),down(0) {}
 
-  void add_up_arc( Arc *a ) 
+  void add_up_arc( Arc *a )
   {
     a->next_up = up;
     up = a;
     a->lo = this;
   }
 
-  void add_down_arc( Arc *a ) 
-  { 
-    a->next_down = down; 
-    down = a; 
+  void add_down_arc( Arc *a )
+  {
+    a->next_down = down;
+    down = a;
     a->hi = this;
   }
 
   void remove_up_arc( Arc *a )
   {
     if ( up == a ) {
-      up = a->next_up; 
+      up = a->next_up;
     } else {
       Arc *u = up;
       while( u->next_up && u->next_up!=a ) u=u->next_up;
@@ -157,7 +164,7 @@ struct Node
   void remove_down_arc( Arc *a )
   {
     if ( down == a ) {
-      down = a->next_down; 
+      down = a->next_down;
     } else {
       Arc *d = down;
       while( d->next_down && d->next_down!=a ) d=d->next_down;
@@ -165,19 +172,19 @@ struct Node
       d->next_down = d->next_down->next_down;
     }
   }
-  
+
 
   bool is_max() const { return !up ;}
   bool is_min() const { return !down ;}
 
-  int up_degree() const 
+  int up_degree() const
   {
     int deg=0;
     for (Arc *u=up; u; u=u->next_up) ++deg;
     return deg;
   }
 
-  int down_degree() const 
+  int down_degree() const
   {
     int deg=0;
     for(Arc *d = down; d; d=d->next_down) ++deg;
@@ -187,6 +194,7 @@ struct Node
 };
 
 
+// Enumerate all the nodes in a contour tree.
 template <typename Vertex, typename OutputItr >
 void get_nodes( Node<Vertex> *n,  OutputItr out )
 {
@@ -198,45 +206,47 @@ void get_nodes( Node<Vertex> *n,  OutputItr out )
     *out = p.first;
     ++out;
     for ( Arc<Vertex> *a = p.first->up; a; a=a->next_up ) {
-      if ( a->hi != p.second ) stack.push_back( std::make_pair(a->hi,p.first)); 
+      if ( a->hi != p.second ) stack.push_back( std::make_pair(a->hi,p.first));
     }
     for ( Arc<Vertex> *a = p.first->down; a; a=a->next_down ) {
-      if ( a->lo != p.second ) stack.push_back( std::make_pair(a->lo,p.first)); 
+      if ( a->lo != p.second ) stack.push_back( std::make_pair(a->lo,p.first));
     }
   }
 }
 
 
 
-
-
+// full_sweep is a "dense" sweep that touches every vertex in the input, so you
+// don't need to know ahead of time which vertices are critical points. This
+// sweep will identify them.
+//
 // full_sweep takes a Closure argument that must implement the following:
 //
-//    int link( const Vertex &, Vertex[] )
-//      yields the immediate neighbors of a potential critical point (pcp)
-//      that preceed it in the sweep
+//    int lowier_link( const Vertex &, Vertex[] )
+//      Yields the immediate neighbors of a vertex that preceed it in the
+//      sweep. Implementations should write the neighbors of the first argument
+//      into the second argument.
 //
 //    int max_link_size
-//      the minimum size for the 2nd argument to lower_link
+//      Used to allocate space for the second argument to lower_link.
 //
-//  The output of sweep is its final argument, which can be any dictionary-like
-//  container implementing the [] operator, taking a Vertex as an index.
-//  However this lookup function will be hammered so it should probably be an
-//  array.  The sweep components will be stored in that container, keyed by
-//  their birth vertices. The container must return a null pointer on the first
-//  access of a vertex. (This is the default behavior for stl map-link
-//  containers, and for an array or vector it suffices to initialize it with
-//  nulls)
+//  The output of sweep is written into the comps argument, which can be any
+//  dictionary-like container implementing the [] operator, taking a Vertex as
+//  an index.  However this lookup function will be hammered so it should
+//  probably be an array or std::vector.  The sweep components will be stored
+//  in that container, keyed by their birth vertices. The container must return
+//  a null pointer on the first access of a vertex. (This is the default
+//  behavior for stl map-link containers. For an array or vector you can should
+//  initialize it with nulls.)
 //
-//  Returns the final component 
-
+//  Returns the final component of the sweep.
 
 template <typename InputItr, typename Closure, typename ComponentMap>
 SweepComponent<typename InputItr::value_type>*
-full_sweep( 
+full_sweep(
   SweepType type, //is this a join or split sweep?
   InputItr begin, //the sorted range of vertices
-  InputItr end,          
+  InputItr end,
   Closure & closure, //yields lower links and reachable extrema
   ComponentMap & comps ) //output
 {
@@ -247,7 +257,7 @@ full_sweep(
     Vertex i = *itr;
     last = i;
     Vertex link[closure.max_link_size];
-    int nlink = closure.link(i,link);
+    int nlink = closure.lower_link(i,link);
     int num_comps_here=0;
     icomp = 0;
     for ( int l=0; l<nlink; ++l ) {
@@ -284,27 +294,27 @@ full_sweep(
 
   if (icomp) { //if we did anything at all
     SweepComponent<Vertex> *inf = new SweepComponent<Vertex>(type,last);
-    icomp = comps[last]->find(); 
+    icomp = comps[last]->find();
     inf->add_pred(icomp);
     comps[inf->birth] = inf;
     return inf;
   } else {
-    return 0; 
+    return 0;
   }
-  
+
 }
 
 
-// augment : ensure that the join and split trees containt the same set of
-// nodes. This may change the split tree root; if so, the new split root is
-// returned.
+// augment ensures that the join and split trees containt the same set of
+// nodes. Any node present in one but not both trees is added to the other.
+// This may change the split tree root; if so, the new split root is returned.
 
 template <typename InputItr, typename Vertex, typename ComponentMap>
-SweepComponent<Vertex>* 
-augment( 
+SweepComponent<Vertex>*
+augment(
   InputItr begin, //the sorted range of vertices
-  InputItr end,          
-  ComponentMap & join_comps, 
+  InputItr end,
+  ComponentMap & join_comps,
   ComponentMap & split_comps,
   SweepComponent<Vertex>* split_root )
 {
@@ -343,17 +353,26 @@ augment(
 
 
 
-// minimal_sweep takes a Closure argument that must implement the following:
+//  minimal_sweep implements a "sparse" sweep, in the style of
+//
+//    Simple and Optimal Output-Sensitive Construction of Contour Trees Using
+//    Monotone Paths (2004)
+//    Yi-Jen Chiang , Tobias Lenz , Xiang Lu , Günter Rote
+//
+//  It sweeps over just the critical points, but if there are non-critical
+//  points in input that's ok. This function takes a Closure argument that must
+//  implement the following:
 //
 //    int lower_link( const Vertex &, Vertex[] )
-//      yields the immediate neighbors of a potential critical point (pcp)
-//      that preceed it in the sweep
+//      Yields the immediate neighbors of a vertex that preceed it in the
+//      sweep. Implementations should write the neighbors of the first argument
+//      into the second argument.
 //
 //    int max_link_size
-//      the minimum size for the 2nd argument to lower_link
+//      Used to allocate space for the second argument to lower_link.
 //
 //    Vertex walk_back( const Vertex & )
-//      yields an extrema that preceeds the vertex in the sweep and 
+//      yields an extrema that preceeds the vertex in the sweep and
 //      that is reachable from the vertex by a monotone path
 //
 //  The output of sweep is its final argument, which can be any dictionary-like
@@ -361,15 +380,15 @@ augment(
 //  sweep components will be stored in that container, keyed by their birth
 //  vertices.
 //
-//  Returns the final component 
+//  Returns the final component
 
 
 template <typename InputItr, typename Closure, typename ComponentMap>
 SweepComponent<typename InputItr::value_type>*
-minimal_sweep( 
+minimal_sweep(
   SweepType type, //is this a join or split sweep?
   InputItr begin, //the sorted range of vertices
-  InputItr end,          
+  InputItr end,
   Closure & closure, //yields lower links and reachable extrema
   ComponentMap & comps ) //output
 {
@@ -382,15 +401,13 @@ minimal_sweep(
 
     icomp = new SweepComponent<Vertex>(type,i);
     comps[i] = icomp;
-    
-    //std::cout << "i = " << i << std::endl;
+
     for ( int l=0; l<nlink; ++l ) {
       Vertex j = closure.walk_back(link[l]);
-      //std::cout << "j = " << j << std::endl;
       SweepComponent<Vertex> *jcomp = comps[j];
-      if ( !jcomp ) { 
-        std::cout << "created componet at " << j << " out of order" << std::endl;
-        abort();
+      if ( !jcomp ) {
+        std::cerr << "created componet at " << j << " out of order" << std::endl;
+        return static_cast< SweepComponent<Vertex> >(0);
       }
       jcomp = jcomp->find();
       if ( icomp != jcomp ) {
@@ -410,7 +427,7 @@ void queue_leaves( SweepComponent<Vertex> *root, LeafQ & leafq )
   std::vector<SweepComponent<Vertex>*> stack(1,root);
   while(!stack.empty()) {
     SweepComponent<Vertex> *c = stack.back();
-    stack.pop_back(); 
+    stack.pop_back();
     if ( c->is_leaf() ) leafq.push_back(c);
     else {
       for (SweepComponent<Vertex> *p = c->pred; p; p=p->next_pred)
@@ -422,30 +439,30 @@ void queue_leaves( SweepComponent<Vertex> *root, LeafQ & leafq )
 
 
 template <typename Vertex >
-void remove_regular_points( 
+void remove_regular_points(
   std::map<Vertex,SweepComponent<Vertex>*> & join_map,
   std::map<Vertex,SweepComponent<Vertex>*> & split_map )
 {
   typedef std::map<Vertex,SweepComponent<Vertex>*> ComponentMap;
 
-  typename ComponentMap::iterator 
+  typename ComponentMap::iterator
     jitr=join_map.begin(), sitr=split_map.begin();
-  
+
   while( jitr != join_map.end() ) {
     assert( jitr->first == sitr->first );
     if ( jitr->second->is_regular() && sitr->second->is_regular() ) {
       typename ComponentMap::iterator j=jitr, s=sitr;
       ++jitr,++sitr;
-      
+
       SweepComponent<Vertex> *dead;
-      dead = j->second->pred->merge_with_succ(); 
+      dead = j->second->pred->merge_with_succ();
       delete dead;
-      dead = s->second->pred->merge_with_succ(); 
+      dead = s->second->pred->merge_with_succ();
       delete dead;
 
       join_map.erase(j);
       split_map.erase(s);
-    
+
     } else {
       ++jitr,++sitr;
     }
@@ -454,7 +471,7 @@ void remove_regular_points(
 
 
 template <typename InputItr, typename ComponentMap  >
-void remove_regular_points( 
+void remove_regular_points(
   InputItr begin, InputItr end,
   ComponentMap & join_map,
   ComponentMap & split_map )
@@ -465,11 +482,11 @@ void remove_regular_points(
 
     assert( j->birth==s->birth );
     if ( j->is_regular() && s->is_regular() ) {
-      
+
       SweepComponent<Vertex> *dead;
-      dead = j->pred->merge_with_succ(); 
+      dead = j->pred->merge_with_succ();
       delete dead;
-      dead = s->pred->merge_with_succ(); 
+      dead = s->pred->merge_with_succ();
       delete dead;
 
       join_map[*i] = split_map[*i] = 0;
@@ -479,30 +496,18 @@ void remove_regular_points(
 
 
 
-
-
-
-
-
-
-
-
-
-//Merge the join and split trees. The last argument is a value indicating
-//a null vertex somehow, such as -1 if Vertex is an integral type or NULL
-//if its a pointer.
+// Merge the join and split trees into a contour tree.
 //
-// The output is put in the node map
+// The output is put in the node_map argument.
 //
 // NB: there is a function named merge in the std namespace. If you
-// get strange template errors, try disambiguating
+// get strange template errors, try disambiguating.
 
 template <typename Vertex, typename ComponentMap, typename NodeMap>
-void
-merge( 
+void merge(
   SweepComponent<Vertex>* join_root,
   SweepComponent<Vertex>* split_root,
-  ComponentMap & join_map, 
+  ComponentMap & join_map,
   ComponentMap & split_map,
   NodeMap & node_map )
 {
@@ -518,62 +523,62 @@ merge(
     SweepComponent<Vertex> *leaf = leafq.front();
     leafq.pop_front();
 
-    if (!leaf->succ) { // all done 
+    if (!leaf->succ) { // all done
       break;
     }
     Node<Vertex> *lo,*hi;
-    // which tree is this comp from? 
+    // which tree is this comp from?
     if ( leaf->type == Join ) {
-      // comp is join component 
+      // comp is join component
       other_map = &split_map;
-      typename NodeMap::iterator 
+      typename NodeMap::iterator
         lo_itr = node_map.find(leaf->birth),
         hi_itr = node_map.find(leaf->succ->birth);
       if (lo_itr == node_map.end()) {
         lo = new Node<Vertex>(leaf->birth);
         node_map.insert( std::make_pair(leaf->birth,lo) );
       } else {
-        lo = lo_itr->second; 
+        lo = lo_itr->second;
       }
       if (hi_itr == node_map.end()) {
         hi = new Node<Vertex>(leaf->succ->birth);
         node_map.insert(std::make_pair(leaf->succ->birth,hi));
       } else {
-        hi = hi_itr->second; 
+        hi = hi_itr->second;
       }
-    } else { // split component 
+    } else { // split component
       other_map = &join_map;
-      typename NodeMap::iterator 
+      typename NodeMap::iterator
         hi_itr = node_map.find(leaf->birth),
         lo_itr = node_map.find(leaf->succ->birth);
       if (hi_itr == node_map.end()) {
         hi = new Node<Vertex>(leaf->birth);
         node_map.insert(std::make_pair(leaf->birth,hi));
       } else {
-        hi = hi_itr->second; 
+        hi = hi_itr->second;
       }
       if (lo_itr == node_map.end()) {
         lo = new Node<Vertex>(leaf->succ->birth);
         node_map.insert(std::make_pair(leaf->succ->birth,lo));
       } else {
-        lo = lo_itr->second; 
+        lo = lo_itr->second;
       }
     }
-    // create arc 
+    // create arc
     arc = new Arc<Vertex>;
     lo->add_up_arc(arc);
     hi->add_down_arc(arc);
-    // remove leaf 
+    // remove leaf
     SweepComponent<Vertex> *succ = leaf->succ;
     assert(succ);
     leaf->prune();
-    // remove leaf's counterpart in other tree 
-    SweepComponent<Vertex> 
+    // remove leaf's counterpart in other tree
+    SweepComponent<Vertex>
       *other = (*other_map)[leaf->birth],
       *other_succ = (*other_map)[succ->birth];
     assert(other&&other_succ);
     assert(other->is_regular()) ;
-    
+
     SweepComponent<Vertex>*
      dead = other->pred->merge_with_succ();
 
@@ -586,14 +591,17 @@ merge(
     delete dead;
     delete leaf;
   }
-} 
+}
 
 
-
-
-
+// Marks for each saddle the index of the maximum that is 'farthest' from it in
+// the sense that to get there you pass the greatest number of other saddles.
+// This is just one possible heuristic for creating a branch decomposition.
+// It's not perfect, but it's generic.
 template <typename Vertex>
-void mark_farthest_maxes( std::vector<Node<Vertex>*> & nodes, std::vector<int> & farthest )
+void mark_farthest_maxes(
+    std::vector<Node<Vertex>*> & nodes,
+    std::vector<int> & farthest )
 {
   typedef std::pair<Node<Vertex>*,int> Pair;
   std::deque<Pair> queue;
@@ -603,7 +611,7 @@ void mark_farthest_maxes( std::vector<Node<Vertex>*> & nodes, std::vector<int> &
     int deg = n->up_degree();
     assert(n->id < farthest.size());
     farthest[n->id] = -(deg-1);
-    if (deg==0) { 
+    if (deg==0) {
       queue.push_back( std::make_pair(n,0) );
     }
   }
@@ -611,18 +619,23 @@ void mark_farthest_maxes( std::vector<Node<Vertex>*> & nodes, std::vector<int> &
     Pair p = queue.front();
     queue.pop_front();
     if ( farthest[p.first->id] < 0 ) {
-      farthest[p.first->id]++; 
+      farthest[p.first->id]++;
     } else {
       farthest[p.first->id] = p.second;
       for ( Arc<Vertex>* d=p.first->down; d; d=d->next_down ) {
         queue.push_back( std::make_pair(d->lo,p.second+1) );
       }
-    } 
+    }
   }
 }
 
+
+// This is the same as mark_farthest_max. They could probably be combined into
+// a common function.
 template <typename Vertex>
-void mark_farthest_mins( std::vector<Node<Vertex>*> & nodes, std::vector<int> & farthest )
+void mark_farthest_mins(
+    std::vector<Node<Vertex>*> & nodes,
+    std::vector<int> & farthest )
 {
   typedef std::pair<Node<Vertex>*,int> Pair;
   std::deque<Pair> queue;
@@ -632,7 +645,7 @@ void mark_farthest_mins( std::vector<Node<Vertex>*> & nodes, std::vector<int> & 
     int deg = n->down_degree();
     assert(n->id < farthest.size());
     farthest[n->id] = -(deg-1);
-    if (deg==0) { 
+    if (deg==0) {
       queue.push_back( std::make_pair(n,0) );
     }
   }
@@ -640,13 +653,13 @@ void mark_farthest_mins( std::vector<Node<Vertex>*> & nodes, std::vector<int> & 
     Pair p = queue.front();
     queue.pop_front();
     if ( farthest[p.first->id] < 0 ) {
-      farthest[p.first->id]++; 
+      farthest[p.first->id]++;
     } else {
       farthest[p.first->id] = p.second;
       for ( Arc<Vertex>* d=p.first->up; d; d=d->next_up ) {
         queue.push_back( std::make_pair(d->hi,p.second+1) );
       }
-    } 
+    }
   }
 }
 
@@ -654,8 +667,7 @@ void mark_farthest_mins( std::vector<Node<Vertex>*> & nodes, std::vector<int> & 
 
 
 // Form a branch decomposition where each branch contains as many saddles as
-// possible. This requires that the nodes be marked with contiguous ids, e.g.
-// after using get_nodes.
+// possible.
 //
 // Returns the number of branches and the root node. The 1st argument is input,
 // a list of nodes. The 2nd argument is output, the root arc of each branch
@@ -663,40 +675,39 @@ void mark_farthest_mins( std::vector<Node<Vertex>*> & nodes, std::vector<int> & 
 enum Direction { Up,Down };
 
 template <typename Vertex>
-void
-greedy_branch_decomposition
-( std::vector<Node<Vertex>*> & nodes,  
-  std::vector<Arc<Vertex>*> & branches ) 
+void greedy_branch_decomposition(
+  std::vector<Node<Vertex>*> & nodes,
+  std::vector<Arc<Vertex>*> & branches )
 {
   std::vector<int> farthest_max(nodes.size()), farthest_min(nodes.size());
   mark_farthest_maxes(nodes,farthest_max);
   mark_farthest_mins(nodes,farthest_min);
 
   //find the max (min) that is furthest from a min (max)
-  int best_dist=-1; 
+  int best_dist=-1;
   Node<Vertex> *best_node=0;
-  for (size_t i=0; i<nodes.size(); ++i) 
-  {
+  for (size_t i=0; i<nodes.size(); ++i) {
     Node<Vertex> *n = nodes[i];
     if (n->is_max() && farthest_min[n->id] > best_dist ) {
-      best_dist = farthest_min[n->id]; 
+      best_dist = farthest_min[n->id];
       best_node = n;
     } else if (n->is_min() && farthest_max[n->id] > best_dist ) {
-      best_dist = farthest_max[n->id]; 
+      best_dist = farthest_max[n->id];
       best_node = n;
     }
   }
 
   std::vector< std::pair<Arc<Vertex>*,Direction> > stack;
-  if ( best_node->is_max() ) 
+  if ( best_node->is_max() ) {
     stack.push_back( std::make_pair(best_node->down,Down) );
-  else
+  } else {
     stack.push_back( std::make_pair(best_node->up,Up) );
+  }
 
   //for each root, walk out to the farthest max (min) and call those
   //arcs the branch
   while(!stack.empty()) {
-    Arc<Vertex> *first = stack.back().first;  
+    Arc<Vertex> *first = stack.back().first;
     Direction dir = stack.back().second;
     stack.pop_back();
     uint32_t branch_id = branches.size();
@@ -704,16 +715,16 @@ greedy_branch_decomposition
     Arc<Vertex> *arc = first;
     if ( dir == Up ) {
       for(;;) {
-        arc->branch = branch_id; 
+        arc->branch = branch_id;
         Arc<Vertex> *next = arc->hi->up;
         if (!next) break;
-        //the next arc along the branch is the one that leads to the farthest max 
+        //the next arc along the branch is the one that leads to the farthest max
         for ( Arc<Vertex> *a=next->next_up; a; a=a->next_up ) {
           if ( farthest_max[a->hi->id] > farthest_max[next->hi->id] )
             next = a;
         }
-        //push all the rest of the arcs here onto the stack 
-        for ( Arc<Vertex> *a=arc->hi->up; a; a=a->next_up ) 
+        //push all the rest of the arcs here onto the stack
+        for ( Arc<Vertex> *a=arc->hi->up; a; a=a->next_up )
           if ( a!=next ) {
             stack.push_back( std::make_pair(a,Up) );
           }
@@ -726,7 +737,7 @@ greedy_branch_decomposition
       }
     } else { // dir == Down
       for(;;) {
-        arc->branch = branch_id; 
+        arc->branch = branch_id;
         Arc<Vertex> *next = arc->lo->down;
         if (!next) break;
         for ( Arc<Vertex> *a=next->next_down; a; a=a->next_down ) {

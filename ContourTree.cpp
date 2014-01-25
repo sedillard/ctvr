@@ -6,17 +6,6 @@
 using namespace std;
 using namespace Tourtre;
 
-#if 0
-static
-void assert_all_unique( vector<uint32_t> const& v )
-{
-  vector<uint32_t> x=v;
-  sort(x.begin(),x.end());
-  for ( size_t i=0; i<x.size()-1; ++i ) assert(x[i] != x[i+1] );
-}
-#endif
-
-
 struct JoinSweepClosure
 {
   Trilinear<uint8_t> & t;
@@ -24,17 +13,17 @@ struct JoinSweepClosure
   int max_link_size;
   JoinSweepClosure( Trilinear<uint8_t> & t_ ) : t(t_),max_link_size(32) {}
 
-  int lower_link( const Vertex & i, Vertex link[] ) const 
-  { 
+  int lower_link( const Vertex & i, Vertex link[] ) const
+  {
     int nlink = t.lower_link(i,link);
     return nlink;
   }
 
-  Vertex walk_back( const Vertex & v ) const 
-  { 
+  Vertex walk_back( const Vertex & v ) const
+  {
     assert(v < t.nvoxels);
     assert(t.reachable_min[v] != uint32_t(-1));
-    return t.reachable_min[v]; 
+    return t.reachable_min[v];
   }
 };
 
@@ -45,40 +34,39 @@ struct SplitSweepClosure
   int max_link_size;
   SplitSweepClosure( Trilinear<uint8_t> & t_ ) : t(t_),max_link_size(32) {}
 
-  int lower_link( const Vertex & i, Vertex link[] ) const 
-  { 
+  int lower_link( const Vertex & i, Vertex link[] ) const
+  {
     int nlink = t.upper_link(i,link);
     return nlink;
   }
 
-  Vertex walk_back( const Vertex & v ) const 
-  { 
+  Vertex walk_back( const Vertex & v ) const
+  {
     assert(t.reachable_max[v] != uint32_t(-1));
-    return t.reachable_max[v]; 
+    return t.reachable_max[v];
   }
 };
 
 
-ContourTree::ContourTree 
-( uint8_t *image, uint32_t ncols, uint32_t nrows, uint32_t nstacks )
+ContourTree::ContourTree(
+    uint8_t *image, uint32_t ncols, uint32_t nrows, uint32_t nstacks )
 : tl(image,ncols,nrows,nstacks)
 {
   voxels = image;
-  img_size[0] = ncols; 
-  img_size[1] = nrows; 
-  img_size[2] = nstacks; 
+  img_size[0] = ncols;
+  img_size[1] = nrows;
+  img_size[2] = nstacks;
   nvoxels = ncols*nrows*nstacks;
 }
 
 void ContourTree::build ()
 {
-
   tl.find_critical_voxels();
   tl.find_saddles();
   tl.mark_reachable_maxes();
   tl.mark_reachable_mins();
   cout << "found " << tl.maxes.size() << " maxes, " << tl.mins.size() << " mins, "
-       << tl.voxel_saddles.size() << " voxel-saddles and " 
+       << tl.voxel_saddles.size() << " voxel-saddles and "
        << tl.nonvoxel_saddles.size() << " nonvoxel-saddles" << endl;
 
   vector<uint32_t> verts;
@@ -99,14 +87,14 @@ void ContourTree::build ()
     tl.place_holders.clear();
   }
 
-  
+
   cout << "sorting" << endl;
   #pragma omp parallel sections
   {
     #pragma omp section
     sort( verts.begin(),verts.end(), Trilinear<uint8_t>::compare_voxels(tl) );
     #pragma omp section
-    sort( tl.nonvoxel_saddles.begin(), tl.nonvoxel_saddles.end(), 
+    sort( tl.nonvoxel_saddles.begin(), tl.nonvoxel_saddles.end(),
           Trilinear<uint8_t>::compare_saddles(tl) );
   }
 
@@ -117,11 +105,11 @@ void ContourTree::build ()
 
   typedef Trilinear<uint8_t>::ComponentMap ComponentMap;
   ComponentMap join_comps(tl,Join), split_comps(tl,Split);
-  
+
   SweepComponent<uint32_t> *join_root, *split_root;
 
   cout << "sweep" << endl;
-  #pragma omp parallel sections 
+  #pragma omp parallel sections
   {
     #pragma omp section
     {
@@ -137,8 +125,6 @@ void ContourTree::build ()
     }
   }
 
-  //tl.reachable_max = tl.reachable_min = vector<uint32_t>();
-
   remove_regular_points(verts.begin(),verts.end(),join_comps,split_comps);
   verts = vector<uint32_t>();
 
@@ -148,24 +134,12 @@ void ContourTree::build ()
   tl.join_comps = tl.split_comps = vector<SweepComponent<uint32_t>*>();
 
   Node *n = node_map.begin()->second;
-  
+
   //get list of nodes
   get_nodes(n,back_inserter(nodes));
 
-  int max_up=0,max_down=0,max_degree=0;
-
   //mark node ids
-  for ( uint32_t i=0; i<nodes.size(); ++i ) {
-    int ud = nodes[i]->up_degree();
-    int dd = nodes[i]->down_degree();
-    max_up = max(max_up,ud);
-    max_down = max(max_down,dd);
-    max_degree = max(max_degree,ud+dd);
-    nodes[i]->id = i;
-  }
-
-  cout << "max up degree is " << max_up << ", max down degree is " << max_down 
-       << "max total degree is " << max_degree << endl;
+  for ( uint32_t i=0; i<nodes.size(); ++i ) nodes[i]->id = i;
 
   //mark arc ids
   uint32_t narcs=0;
@@ -175,7 +149,7 @@ void ContourTree::build ()
       a->id = ++narcs;
     }
   }
-  
+
 
   for ( uint32_t i=0; i<nodes.size(); ++i ) {
     assert ( !(nodes[i]->is_max() || nodes[i]->is_min()) || nodes[i]->vertex < nvoxels );
@@ -193,16 +167,16 @@ bool ContourTree::branch_is_ascending( uint32_t b )
   Arc *first = branches[b];
   if ( !first->hi->up ) return true; //its a max
   if ( !first->lo->down ) return false; //its a min
-  for ( Arc *a=first->hi->up; a; a=a->next_up ) 
-    if ( a->branch==b ) return true; 
-  for ( Arc *a=first->lo->down; a; a=a->next_down ) 
-    if ( a->branch==b ) return true; 
+  for ( Arc *a=first->hi->up; a; a=a->next_up )
+    if ( a->branch==b ) return true;
+  for ( Arc *a=first->lo->down; a; a=a->next_down )
+    if ( a->branch==b ) return true;
   assert(0&&"branch_is_ascending: couldn't find the 2nd arc along the branch");
 }
 
 
-pair<ContourTree::Node*,ContourTree::Node*> 
-ContourTree::branch_range( uint32_t b ) 
+pair<ContourTree::Node*,ContourTree::Node*>
+ContourTree::branch_range( uint32_t b )
 {
   Arc *first=branches[b], *arc=first, *next;
   if ( branch_is_ascending(b) ) {
@@ -237,21 +211,21 @@ ContourTree::branch_range( uint32_t b )
 void ContourTree::prune_flat_arcs()
 {
   deque<Node*> leafq;
-  for ( uint32_t i=0; i<nodes.size(); ++i ) 
-    if ( nodes[i]->is_max() || nodes[i]->is_min() ) 
+  for ( uint32_t i=0; i<nodes.size(); ++i )
+    if ( nodes[i]->is_max() || nodes[i]->is_min() )
       leafq.push_back(nodes[i]);
 
   Node *some_node=0;
   while(!leafq.empty()) {
     Node *n = leafq.front();
     leafq.pop_front();
-    
+
     if (n->is_max()) {
       Arc *a = n->down;
       Node *o = a->lo;
       if ( o->up_degree() > 1 ) {
         if ( tl.value(n->vertex) == tl.value(o->vertex) ) {
-          o->remove_up_arc(a);    
+          o->remove_up_arc(a);
           delete a;
           delete n;
           if ( o->up_degree()==1 && o->down_degree()==1 ) {
@@ -269,12 +243,12 @@ void ContourTree::prune_flat_arcs()
             if (l->is_min()) leafq.push_back(l);
             some_node = l;
           } else {
-            some_node = o; 
+            some_node = o;
           }
         }
       }
     } else {
-      //TODO 
+      //TODO
     }
   }
 

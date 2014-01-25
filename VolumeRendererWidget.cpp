@@ -12,10 +12,10 @@
 using namespace std;
 using namespace Geom;
 
-VolumeRendererWidget::VolumeRendererWidget 
+VolumeRendererWidget::VolumeRendererWidget
 ( ContourTreeVolumeRenderer *ctvr_,
-  QWidget *parent 
-) : 
+  QWidget *parent
+) :
   QGLWidget(parent),
   ctvr(ctvr_)
 {
@@ -61,14 +61,14 @@ VolumeRendererWidget::paintGL()
   uint32_t *size = ctvr->vol_size;
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  GLint vp[4]; 
+  GLint vp[4];
   glGetIntegerv(GL_VIEWPORT,vp);
 
   GLdouble mv[16],proj[16];
   glGetDoublev(GL_MODELVIEW_MATRIX,mv);
   glGetDoublev(GL_PROJECTION_MATRIX,proj);
 
-  double bl[3],br[3],tl[3],tr[3]; 
+  double bl[3],br[3],tl[3],tr[3];
     //bottom left, bottom right, top left, top right
   gluUnProject(vp[0],vp[1],0.9,mv,proj,vp, bl,bl+1,bl+2 );
   gluUnProject(vp[2],vp[1],0.9,mv,proj,vp, br,br+1,br+2 );
@@ -84,19 +84,18 @@ VolumeRendererWidget::paintGL()
     glVertex3dv(tl);
   glEnd();
 
-    //axes
-  // glBegin(GL_LINES);
-  //   glColor3f(1.0,0,0);
-  //   glVertex3d(      0,  0,  0);
-  //   glVertex3d(size[0],  0,  0);
-  //   glColor3f(0,1.0,0);
-  //   glVertex3d(  0,        0,  0);
-  //   glVertex3d(  0,  size[1],  0);
-  //   glColor3f(0,0,1.0);
-  //   glVertex3d(  0,  0,      0);
-  //   glVertex3d(  0,  0, size[2]);
-  // glEnd();
-  
+  glBegin(GL_LINES);
+    glColor3f(1.0,0,0);
+    glVertex3d(      0,  0,  0);
+    glVertex3d(size[0],  0,  0);
+    glColor3f(0,1.0,0);
+    glVertex3d(  0,        0,  0);
+    glVertex3d(  0,  size[1],  0);
+    glColor3f(0,0,1.0);
+    glVertex3d(  0,  0,      0);
+    glVertex3d(  0,  0, size[2]);
+  glEnd();
+
   if ( sw_rendering == 0 ) {
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
@@ -137,7 +136,7 @@ VolumeRendererWidget::paintGL()
     glMatrixMode(GL_MODELVIEW);
     glPopMatrix();
   }
-  
+
 }
 
 
@@ -152,7 +151,7 @@ void VolumeRendererWidget::draw_box_faces()
 {
   double fp[3],bp[3],vv[3]; //front point, back point, view vector
 
-  GLint vp[4]; 
+  GLint vp[4];
   glGetIntegerv(GL_VIEWPORT,vp);
   GLdouble mv[16],proj[16];
   glGetDoublev(GL_MODELVIEW_MATRIX,mv);
@@ -217,7 +216,7 @@ void VolumeRendererWidget::mousePressEvent( QMouseEvent *event )
     sw_rendering = 0;
     setCursor(QCursor(Qt::ClosedHandCursor));
   } else {
-    dragging_sw_win = true; 
+    dragging_sw_win = true;
     sw_win_left = mouse_x;
     sw_win_bottom = mouse_y;
     cout << "start drag " << endl;
@@ -252,15 +251,13 @@ void VolumeRendererWidget::mouseMoveEvent( QMouseEvent *event )
       y1 = (event_y   /h)*2-1 ;
     glMatrixMode(GL_MODELVIEW);
 
-    if (x0==x1 && y0==y1) return;
-
     const uint32_t *size = ctvr->vol_size;
 
     pair< Vec3d, double> ang_ax = trackball( vec2(x0,y0) , vec2(x1,y1) );
-    
-    Vec3d v = inverse( Matrix33d::from_upper_left( 
+
+    Vec3d v = inverse( Matrix33d::from_upper_left(
                 get_gl_matrix(GL_MODELVIEW_MATRIX))) * ang_ax.first;
-    glMatrixMode(GL_MODELVIEW); 
+    glMatrixMode(GL_MODELVIEW);
     glTranslated(size[0]/2.0, size[1]/2.0, size[2]/2.0 );
     glRotated( ang_ax.second*180.0/M_PI, v[0],v[1],v[2]);
     glTranslated(-(size[0]/2.0), -(size[1]/2.0), -(size[2]/2.0) );
@@ -274,7 +271,7 @@ void VolumeRendererWidget::wheelEvent( QWheelEvent *event )
 {
   double zoom = event->delta() > 0 ? 1.1 : 0.9;
   const uint32_t *size = ctvr->vol_size;
-  glMatrixMode(GL_MODELVIEW); 
+  glMatrixMode(GL_MODELVIEW);
   glTranslated(size[0]/2.0, size[1]/2.0, size[2]/2.0 );
   glScaled(zoom,zoom,zoom);
   glTranslated(-(size[0]/2.0), -(size[1]/2.0), -(size[2]/2.0) );
@@ -296,13 +293,13 @@ void VolumeRendererWidget::start_sw_rendering()
 void VolumeRendererWidget::continue_sw_rendering()
 {
   if (sw_row >= sw_win_height) {
-    sw_rendering = 2; 
+    sw_rendering = 2;
   } else {
     int32_t nrows = 16;
     if ( nrows+sw_row >= sw_win_height ) nrows = sw_win_height - sw_row;
     ctvr->sw_render( sw_img+sw_row*sw_win_width,
                      sw_win_width, nrows,
-                     sw_win_left,sw_win_bottom+sw_row); 
+                     sw_win_left,sw_win_bottom+sw_row);
     cout << "rendered rows " << sw_row << " through " << sw_row + nrows -1 << endl;
     sw_row += nrows;
     QTimer::singleShot(1,this,SLOT(update()));

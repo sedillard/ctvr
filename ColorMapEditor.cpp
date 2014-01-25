@@ -11,13 +11,13 @@ ColorMapEditor::ColorMapEditor( QWidget *parent )
   colors_need_update = true;
   channel = Alpha;
   mode = Curve;
-  
+
 
   stroke( Hue,   0, 0.60, 1, 0);
   stroke( Lum,   0, 0.5, 1, 0.5);
   stroke( Sat,   0, 1, 1, 1);
   stroke( Alpha, 0, 0, 1, 1);
-  
+
 }
 
 
@@ -29,7 +29,7 @@ void ColorMapEditor::initializeGL()
     glEnable(GL_LINE_SMOOTH);
     glLineWidth(2);
     glClearColor(1,1,1,1);
-    
+
     //create texture to display color output
     glGenTextures( 1, &color_tex );
     glBindTexture( GL_TEXTURE_1D, color_tex );
@@ -45,15 +45,15 @@ void ColorMapEditor::initializeGL()
     glPixelStorei( GL_UNPACK_SKIP_ROWS, 0 );
     glPixelStorei( GL_UNPACK_IMAGE_HEIGHT, 0 );
     glPixelStorei( GL_UNPACK_SKIP_IMAGES, 0 );
-    glTexImage1D( GL_TEXTURE_1D, 0, GL_RGBA8, resolution , 0, 
+    glTexImage1D( GL_TEXTURE_1D, 0, GL_RGBA8, resolution , 0,
                   GL_RGBA, GL_UNSIGNED_BYTE, rgba );
-    
+
 }
 
 
 void ColorMapEditor::resizeGL(int w , int h )
 {
-  glViewport(0,0,w,h); 
+  glViewport(0,0,w,h);
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
   glOrtho(0,1,0,1,-1,1);
@@ -79,8 +79,8 @@ void ColorMapEditor::mousePressEvent( QMouseEvent *event )
         update();
     }
 }
-        
-void ColorMapEditor:: mouseMoveEvent(QMouseEvent *event) 
+
+void ColorMapEditor:: mouseMoveEvent(QMouseEvent *event)
 {
   makeCurrent();
   double x0 = prev_x;
@@ -102,11 +102,11 @@ void ColorMapEditor:: mouseMoveEvent(QMouseEvent *event)
 
 void ColorMapEditor:: mouseReleaseEvent( QMouseEvent* )
 {
-  Q_EMIT(edited(rgba));
+  emit edited(rgba);
 }
 
 void
-ColorMapEditor::paintGL () 
+ColorMapEditor::paintGL ()
 {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   if (colors_need_update) {
@@ -117,34 +117,35 @@ ColorMapEditor::paintGL ()
   //draw scale
   int scale_delta = 8;
   //while( scale_delta / 255.0 * height() * zoom < 20 ) scale_delta++;
-  
+
   glColor4f(0,0,0,0.5);
-  
-  //for(size_t i = 0; i < resolution; i += scale_delta) {
-  //    glBegin(GL_LINES);
-  //    glVertex2f( i/(float)resolution , 0);
-  //    glVertex2f( i/(float)resolution , 1);
-  //    glEnd();
-  //}
-  
-  //glEnable(GL_LINE_SMOOTH);
+
+  for(size_t i = 0; i < resolution; i += scale_delta) {
+      glBegin(GL_LINES);
+      glVertex2f( i/(float)resolution , 0);
+      glVertex2f( i/(float)resolution , 1);
+      glEnd();
+  }
+
+  glEnable(GL_LINE_SMOOTH);
 
   //draw function
-  //double res = resolution;
-  //glEnable(GL_TEXTURE_1D);
-  //glBindTexture(GL_TEXTURE_1D,color_tex);
-  //glBegin(GL_QUADS);
-  //    glTexCoord1d( 0.5 / (res-1.0)  );
-  //    glVertex2d  ( 0, 0 );
-  //    glVertex2d  ( 0, 1 );
-  //    
-  //    glTexCoord1d( 0.5 / (res-1.0) + (res-1.0)/res );
-  //    glVertex2d  ( 1, 1 );
-  //    glVertex2d  ( 1, 0 );
-  //glEnd();
-  //glDisable(GL_TEXTURE_1D);
+  double res = resolution;
+  glEnable(GL_TEXTURE_1D);
+  glBindTexture(GL_TEXTURE_1D,color_tex);
+  glBegin(GL_QUADS);
+      glTexCoord1d( 0.5 / (res-1.0)  );
+      glVertex2d  ( 0, 0 );
+      glVertex2d  ( 0, 1 );
 
-  
+      glTexCoord1d( 0.5 / (res-1.0) + (res-1.0)/res );
+      glVertex2d  ( 1, 1 );
+      glVertex2d  ( 1, 0 );
+  glEnd();
+
+  glDisable(GL_TEXTURE_1D);
+
+
   glColor3f(0,0,0);
   glLineWidth(2);
   draw_channel(channel);
@@ -154,20 +155,19 @@ void
 ColorMapEditor::update_colors ()
 {
     glBindTexture(GL_TEXTURE_1D,color_tex);
-    glTexSubImage1D( 
-        GL_TEXTURE_1D, 0, 0, resolution, 
+    glTexSubImage1D(
+        GL_TEXTURE_1D, 0, 0, resolution,
         GL_RGBA, GL_UNSIGNED_BYTE, rgba
     );
 }
 
-void 
-ColorMapEditor::draw_channel (Channel chan) 
+void
+ColorMapEditor::draw_channel (Channel chan)
 {
     float *x = ((float*)hlsa) + chan;
-    glBegin(GL_QUAD_STRIP);
+    glBegin(GL_LINE_STRIP);
     for (uint32_t i = 0; i < resolution; ++i, x+=4) {
         glVertex2f( i / (float)resolution, *x );
-        glVertex2f( i / (float)resolution, 0 );
     }
     glEnd();
 }
@@ -183,15 +183,15 @@ ColorMapEditor::stroke
     float y1 )
 {
     int ibegin, iend;
-    
+
     ibegin = x0 * (resolution-1);
     iend  = x1   * (resolution-1);
-    
+
     if (ibegin <  0 ) ibegin =  0 ;
     if (ibegin > (int(resolution)-1)) ibegin = (resolution-1);
     if (iend  <  0 ) iend  =  0 ;
     if (iend  > (int(resolution)-1)) iend  = (resolution-1);
-    
+
     double vbegin = y0, vend = y1;
     if (vbegin < 0) vbegin = 0;
     if (vbegin > 1) vbegin = 1;
@@ -210,9 +210,9 @@ ColorMapEditor::stroke
         colors_need_update = true;
         return;
     }
-    
+
     if (ibegin > iend) {
-        //swap 
+        //swap
         int ti = ibegin;
         ibegin = iend;
         iend = ti;
@@ -232,7 +232,7 @@ ColorMapEditor::stroke
             default:;
         }
     }
-    
+
     write_hlsa_to_rgba(ibegin,iend);
     colors_need_update = true;
 }
@@ -271,7 +271,7 @@ ColorMapEditor::write_rgba_to_hlsa( int ibegin, int iend )
         y->h = h/360.0;
         y->l = l;
         y->s = s;
-        y->a = x->a / 255.0; 
+        y->a = x->a / 255.0;
     }
 }
 
